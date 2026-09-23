@@ -7,6 +7,12 @@
     <ProjectReference Include="..\..\src\AppServices.AvaloniaUI\AppServices.AvaloniaUI.csproj" />
   </ItemGroup>
 
+  <!-- The dialog accessibility tests build real windows on a headless Avalonia platform; see
+       Headless/HeadlessSessionBootstrap.cs for how and when it is started. -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Bennewitz.Ninja.AssemblyQuality" />
   </ItemGroup>

@@ -24,6 +24,9 @@
     <!-- xunit.v3 on Microsoft.Testing.Platform — see global.json. The VSTest bridge packages are
          deliberately absent; TrxReport is what gives CI its .trx files. -->
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <!-- A real Avalonia application on a headless platform, for the dialog tests. Pinned to the
+         Avalonia version above: the two ship in lockstep. -->
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.0" />
     <!-- The family's own assembly rules, run as tests over what this repository ships. -->
     <PackageVersion Include="Bennewitz.Ninja.AssemblyQuality" Version="2026.3.922" />
     <!-- ⚠ Same Microsoft.Testing.Platform line as xunit.v3 3.2.2 (1.9.1). A NEWER TrxReport pins
