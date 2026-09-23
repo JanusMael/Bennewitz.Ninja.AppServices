@@ -1,0 +1,190 @@
+name: Release
+
+# Triggered by a version tag (v1.2.3), or dispatched by hand.
+#
+# ⛔ A PUBLISHED NUGET VERSION CAN NEVER BE REPLACED. Everything this repository otherwise
+# treats as recoverable becomes permanent past the push step, so the gates below — build,
+# test, pack, and the packed-vs-declared check — all run before it, and --skip-duplicate makes
+# a re-run of a completed release a no-op rather than a failure.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  # Two dispatch modes, decided by whether `version` is filled in:
+  #
+  #   BLANK    credential preflight — logs in to NuGet.org and stops. Proves the trusted-
+  #            publishing policy, the id-token permission and the NUGET_USER secret all line up,
+  #            WITHOUT cutting a release. Run this before the first tag.
+  #   FILLED   a real release, which is the path to use when a tag already exists.
+  #
+  # ⚠ The preflight has to live in THIS workflow rather than one of its own: the OIDC token is
+  # bound to the workflow FILENAME, so a policy naming release.yml would never match a run of any
+  # other file. Every publishing step below is gated on RELEASING, so a preflight cannot publish.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 2026.3.920). LEAVE BLANK to only preflight credentials.'
+        required: false
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # Required for NuGet.org Trusted Publishing (OIDC) — see the NuGet/login step below.
+      # ⭐ This is what replaces a long-lived API key: the token is minted per run and expires,
+      # so there is no secret in this repository that would still be valid if it leaked.
+      id-token: write
+
+    env:
+      # ⭐ A VARIABLE, not a secret, and deliberately so. Trusted publishing carries no secret to
+      # leak: this is only the nuget.org profile name the OIDC token is exchanged against, and a
+      # profile name is public.
+      #
+      # ⛔ Storing it as a secret actively costs you the one thing you need when it is wrong.
+      # GitHub masks a secret in logs, so a bad value turns nuget.org's already-ambiguous 401 into
+      #     No matching trust policy owned by user '***' was found
+      # which hides whether the value was a username, an email, or — the natural mistake, given
+      # the push below takes --api-key — an API key. Set it with:
+      #     gh variable set NUGET_USER --body <your-nuget.org-profile-name>
+      #
+      # Read at JOB level so the steps below can test it. (A secret could not be tested in a
+      # step's own `if` at all; a variable can, but the job-level read keeps one home for it.)
+      NUGET_USER: ${{ vars.NUGET_USER }}
+      # A tag push is always a release; a dispatch is one only when a version was supplied.
+      RELEASING: ${{ github.event_name == 'push' || inputs.version != '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # The version comes from the TAG, not from a file, so the tag and the package agree by
+      # construction rather than by someone remembering to bump both.
+      - name: Resolve version and tag
+        if: env.RELEASING == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+            echo "TAG=v${{ inputs.version }}" >> $GITHUB_ENV
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+            echo "TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          fi
+
+      # ⛔ Fail LOUDLY rather than publish nothing quietly. Without this, a tag with the secret
+      # unset skips the push (which is gated on NUGET_USER) but still creates the GitHub Release
+      # below — a green run, a release page, and no package. That false green is worse than a
+      # failure, because the next person reads the release as evidence the package shipped.
+      - name: Refuse to release without NUGET_USER
+        if: env.RELEASING == 'true' && env.NUGET_USER == ''
+        run: |
+          echo "::error::NUGET_USER is not set. Refusing to release: the push would be skipped"
+          echo "::error::and a GitHub Release would be created for a package that never shipped."
+          exit 1
+
+      - name: Build
+        if: env.RELEASING == 'true'
+        run: dotnet build PkgStem.slnx -c Release --nologo -warnaserror -p:Version=${{ env.VERSION }}
+
+      - name: Test
+        if: env.RELEASING == 'true'
+        run: dotnet test --solution PkgStem.slnx --no-build -c Release
+
+      - name: Pack
+        if: env.RELEASING == 'true'
+        run: >
+          dotnet pack PkgStem.slnx -c Release --no-build --nologo
+          -p:Version=${{ env.VERSION }}
+          --output ./packages/Release
+
+      # ⛔ The last gate before anything becomes permanent. PackagingTests already checked the
+      # project files; this checks what pack ACTUALLY produced, reading each id from the <id>
+      # element inside the .nuspec rather than parsing filenames. A package that appears here and
+      # in neither list stops the run.
+      - name: Assert packed matches declared
+        if: env.RELEASING == 'true'
+        run: dotnet run scripts/assert-packages.cs -- ./packages/Release
+
+      # Kept immediately before the push: the token this returns is short-lived, and a slow step
+      # in between is how it expires before it is used.
+      - name: NuGet Login (Trusted Publishing)
+        id: nuget-login
+        if: env.NUGET_USER != ''
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # ⚠ A successful login proves a policy matched — NEVER that it covers every id. The exchange
+      # succeeds before any package id is considered, so no preflight can detect a coverage gap.
+      # The pattern below is computed from packages.push so the comparison against nuget.org is
+      # against something generated rather than remembered.
+      - name: Report the preflight result
+        if: env.RELEASING != 'true'
+        run: |
+          if [ -z "$NUGET_USER" ]; then
+            echo "::error::NUGET_USER is not set, so no publish would happen on a tag."
+            exit 1
+          fi
+          {
+            echo "### Trusted publishing verified"
+            echo "Logged in as \`$NUGET_USER\`. A \`v*.*.*\` tag will publish:"
+            echo ""
+            grep -v '^[[:space:]]*#' packages.push | grep -v '^[[:space:]]*$' | sed 's/^/- `/; s/$/`/'
+            echo ""
+            echo "Confirm ONE policy on nuget.org whose Glob Patterns cover every id above, and"
+            echo "NOT a policy per id: one exchange mints one key scoped to one policy, so a second"
+            echo "policy is never consulted and its package is rejected 403 — after the first is"
+            echo "already permanent."
+            # ⚠ Matches a line that HAS a real id, rather than `grep -qv` for "not a comment".
+            # A blank line is not a comment either, so the negated form fired on any
+            # packages.local containing one — printing the warning header below with nothing
+            # under it. packages.local's own header promises blank lines are ignored.
+            if grep -qE '^[[:space:]]*[^#[:space:]]' packages.local 2>/dev/null; then
+              echo ""
+              echo "⛔ That pattern must NOT match anything in packages.local:"
+              grep -v '^[[:space:]]*#' packages.local | grep -v '^[[:space:]]*$' | sed 's/^/- `/; s/$/`/'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ⚠ NAMED, NEVER GLOBBED — and driven by packages.push rather than a list repeated here, so
+      # the declaration has exactly one home. A glob publishes whatever happens to be in the
+      # folder, and a published version is permanent, so the one time it picks up something
+      # unintended is the one time it cannot be undone.
+      - name: Push to NuGet.org
+        if: env.RELEASING == 'true' && env.NUGET_USER != ''
+        run: |
+          set -euo pipefail
+          targets=()
+          while IFS= read -r id; do
+            targets+=("./packages/Release/${id}.${VERSION}.nupkg")
+          done < <(grep -v '^[[:space:]]*#' packages.push | grep -v '^[[:space:]]*$')
+          printf 'Pushing %s\n' "${targets[@]}"
+          dotnet nuget push "${targets[@]}" \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      # Same list, same reason. A release asset can be deleted, so a glob here fails QUIETLY —
+      # which is why it is easy to leave globbed and worth not leaving globbed.
+      - name: Create GitHub Release
+        if: env.RELEASING == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          assets=()
+          while IFS= read -r id; do
+            assets+=("./packages/Release/${id}.${VERSION}.nupkg")
+          done < <(grep -v '^[[:space:]]*#' packages.push | grep -v '^[[:space:]]*$')
+          gh release create "${TAG}" --title "${TAG}" --generate-notes "${assets[@]}"

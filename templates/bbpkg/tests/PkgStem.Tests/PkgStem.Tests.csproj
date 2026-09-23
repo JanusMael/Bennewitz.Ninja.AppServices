@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Framework packages, IsTestProject and OutputType all come from tests/Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PkgStem\PkgStem.csproj" />
+  </ItemGroup>
+</Project>

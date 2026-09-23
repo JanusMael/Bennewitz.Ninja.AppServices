@@ -1,0 +1,55 @@
+name: CI
+
+# The template repository's own CI.
+#
+# ⚠ Actions only reads workflows at the REPOSITORY ROOT, so the release workflow shipped inside
+# templates/bbpkg/.github/workflows/ never runs here — it is inert content until some generated
+# repository cuts its first tag. This job is how that shipped path gets exercised without a real
+# publish: verify-release generates a repository from the packed template and runs its logic
+# through build, test, pack and the two-list assertion, stopping well before login and push.
+#
+# ⛔ It is weaker than a real publish and this file says so rather than implying otherwise. The
+# first generated repository's first release is still the first time the shipped push runs for
+# real.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # PackagingTests reads the project files, the two package lists and BOTH release workflows —
+      # the root one that publishes this package, and the shipped one that never runs here. It is
+      # the cheapest of the two gates, so it goes first.
+      - name: Test
+        run: dotnet test tests/Templates.Tests/Templates.Tests.csproj -c Release
+
+      # ⭐ The whole end-to-end gate is one script, deliberately: the thing CI runs and the thing a
+      # developer runs before tagging have to be the same thing, or the local check becomes the one
+      # nobody trusts. It packs, asserts the packed CONTENT, installs FROM the .nupkg, generates,
+      # asserts the generated TREE, then builds, tests and packs that generated repository.
+      #
+      # ⚠ `--file` is required because this repository root holds a .csproj: `dotnet run <file.cs>`
+      # binds to the project when the working directory has one, and the packaging project is a
+      # Library, so the bare form fails with "The current OutputType is 'Library'".
+      - name: Verify the template end to end
+        run: dotnet run --file scripts/verify-release.cs

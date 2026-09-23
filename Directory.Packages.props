@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Versioning">
+    <PackageVersion Include="Bennewitz.Ninja.AutoVersioning" Version="2026.3.914" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <!-- xunit.v3 on Microsoft.Testing.Platform — see global.json. The VSTest bridge packages are
+         deliberately absent; TrxReport is what gives CI its .trx files.
+
+         ⭐ The same framework the template SHIPS, and that is the reason rather than a preference:
+         this repository's own tests and the skeleton's under templates/bbpkg/ are read side by
+         side constantly, and one of them switching idiom would make every comparison harder than
+         the choice is worth. -->
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <!-- ⚠ Same Microsoft.Testing.Platform line as xunit.v3 3.2.2 (1.9.1). A NEWER TrxReport pins
+         the platform above what xunit's bundled MSBuild extension can load, and the failure reads
+         as an unrelated loader error. -->
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.9.1" />
+  </ItemGroup>
+</Project>

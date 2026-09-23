@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Framework packages, IsTestProject and OutputType all come from tests/Directory.Build.props.
+
+       ⚠ No ProjectReference. The packaging project compiles nothing and produces no assembly to
+       assert against — these tests read the repository's FILES: the two package lists, the
+       project files, and both release workflows. Referencing it would only drag a
+       PackageType=Template project into a test build for no gain. -->
+</Project>

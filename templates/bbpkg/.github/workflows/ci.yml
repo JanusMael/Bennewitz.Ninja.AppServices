@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build PkgStem.slnx -c Release --nologo -warnaserror
+
+      # PackagingTests runs here: it reads the project files and the two package lists, so it
+      # catches an unclassified packable project on the push that adds it rather than at release
+      # time, when a mistake is already permanent.
+      - name: Test
+        run: dotnet test --solution PkgStem.slnx --no-build -c Release
+
+  # ⭐ Packing on every push, not only at release. The release workflow's pack step is the first
+  # time packing runs there, so a packaging mistake would surface with a tag already pushed and
+  # the version already spent. Here it is free.
+  pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Pack
+        run: dotnet pack PkgStem.slnx -c Release --nologo --output ./packages/Release
+
+      # The same guard the release runs, against the same artifacts, at no cost.
+      - name: Assert packed matches declared
+        run: dotnet run scripts/assert-packages.cs -- ./packages/Release
