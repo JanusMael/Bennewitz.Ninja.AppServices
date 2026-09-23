@@ -143,6 +143,30 @@ public sealed class PackageMetadataTests
             + "would ship whole and outside its trim analysis. Check src/Directory.Build.props.");
     }
 
+    [Fact]
+    public void The_packed_readme_is_not_the_template_placeholder()
+    {
+        // ⛔ The README travels inside every package and is what nuget.org shows, so a placeholder
+        // left in it is published as permanently as one in a nuspec. 2026.3.923 shipped exactly that,
+        // "TODO: one paragraph saying what this package does", on all seven ids across the two
+        // repositories, because the checks above read the project files and never the README.
+        string readme = Path.Combine(RepoRoot(), "README.md");
+        Assert.True(File.Exists(readme), "README.md is missing, and every packable project packs it.");
+
+        List<string> placeholders =
+        [
+            .. File.ReadAllLines(readme)
+                .Select((line, index) => (Text: line.Trim(), Number: index + 1))
+                .Where(line => line.Text.StartsWith("TODO", StringComparison.OrdinalIgnoreCase))
+                .Select(line => $"line {line.Number}: {line.Text}"),
+        ];
+
+        Assert.True(
+            placeholders.Count == 0,
+            "README.md still carries the template's placeholder text, and it is packed into every "
+            + "package:\n  " + string.Join("\n  ", placeholders));
+    }
+
     private static string? Property(string projectFile, string name) =>
         XDocument.Load(projectFile)
             .Descendants()
