@@ -37,9 +37,11 @@ public sealed class LayeringTests
     /// <param name="ForbiddenPackages">
     /// Package-id prefixes it must never declare, with the tier reason.
     /// </param>
-    private sealed record Tier(string Project, string[] MayReferenceProjects, string[] ForbiddenPackages);
+    // Internal, not private: AssemblyQualityTests reads this same table for AQ1003, so the tiers
+    // have ONE home. A second copy would be the list that silently rots.
+    internal sealed record Tier(string Project, string[] MayReferenceProjects, string[] ForbiddenPackages);
 
-    private static readonly Tier[] Tiers =
+    internal static readonly Tier[] Tiers =
     [
         // Zero outgoing edges, deliberately. Not "few" — none.
         new("AppServices.Abstractions", [], ["Avalonia", "Serilog", "CommunityToolkit"]),
@@ -61,7 +63,7 @@ public sealed class LayeringTests
     /// not assumed — so either could be versioned or abandoned without touching the other. A
     /// reference here would quietly end that.
     /// </summary>
-    private static readonly string[] ForeignFamilies = ["ScopedEditors", "LayeredEditors", "ClaudeForge", "AgentForge"];
+    internal static readonly string[] ForeignFamilies = ["ScopedEditors", "LayeredEditors", "ClaudeForge", "AgentForge"];
 
     [Fact]
     public void Every_tier_named_here_actually_exists()

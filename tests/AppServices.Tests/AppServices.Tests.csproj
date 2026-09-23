@@ -6,4 +6,8 @@
     <ProjectReference Include="..\..\src\AppServices.Logging\AppServices.Logging.csproj" />
     <ProjectReference Include="..\..\src\AppServices.AvaloniaUI\AppServices.AvaloniaUI.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Bennewitz.Ninja.AssemblyQuality" />
+  </ItemGroup>
 </Project>

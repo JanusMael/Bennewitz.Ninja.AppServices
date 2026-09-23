@@ -24,6 +24,8 @@
     <!-- xunit.v3 on Microsoft.Testing.Platform — see global.json. The VSTest bridge packages are
          deliberately absent; TrxReport is what gives CI its .trx files. -->
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <!-- The family's own assembly rules, run as tests over what this repository ships. -->
+    <PackageVersion Include="Bennewitz.Ninja.AssemblyQuality" Version="2026.3.922" />
     <!-- ⚠ Same Microsoft.Testing.Platform line as xunit.v3 3.2.2 (1.9.1). A NEWER TrxReport pins
          the platform above what xunit's bundled MSBuild extension can load, and the failure reads
          as an unrelated loader error. -->
