@@ -10,14 +10,14 @@ completing the same way whether or not anything did.
 | `Bennewitz.Ninja.AppServices.Abstractions` | The contracts and the dialog vocabulary: shell launching, environment, sharing, dialogs and pickers. Framework-free. |
 | `Bennewitz.Ninja.AppServices` | Default implementations: shell launching, environment probing, sharing and a native error dialog. Needs an operating system, not a UI framework, so it works from a CLI, a service or a test. |
 | `Bennewitz.Ninja.AppServices.Logging` | Serilog sinks for desktop applications, starting with a bucketed rolling file sink that keeps a bounded number of files per bucket. |
-| `Bennewitz.Ninja.AppServices.AvaloniaUI` | Avalonia implementations — dialog service, file pickers, fatal and non-fatal dialogs — and the bridge that routes Avalonia's logger and its binding errors into Serilog. |
+| `Bennewitz.Ninja.AppServices.Avalonia` | Avalonia implementations — dialog service, file pickers, fatal and non-fatal dialogs — and the bridge that routes Avalonia's logger and its binding errors into Serilog. |
 
 ## Install
 
 In an Avalonia application, one package brings the other three with it:
 
 ```bash
-dotnet add package Bennewitz.Ninja.AppServices.AvaloniaUI
+dotnet add package Bennewitz.Ninja.AppServices.Avalonia
 ```
 
 Without Avalonia, take `Bennewitz.Ninja.AppServices`, which brings the contracts, and add
@@ -26,9 +26,9 @@ references `Bennewitz.Ninja.AppServices.Abstractions` alone.
 
 ## Upgrading from 2026.3.923
 
-- `Bennewitz.Ninja.AppServices.Avalonia` is now `Bennewitz.Ninja.AppServices.AvaloniaUI`, with its
-  assembly and namespaces renamed to match, because a namespace segment named `Avalonia` shadows
-  Avalonia's own root namespace.
+- `Bennewitz.Ninja.AppServices.Avalonia` keeps its id, but the assembly inside it is now
+  `AppServices.AvaloniaUI` and its namespaces are `Bennewitz.Ninja.AppServices.AvaloniaUI.*`, because a
+  namespace segment named `Avalonia` shadows Avalonia's own root namespace.
 - No `CancellationToken` parameter has a default any more; pass one. `IShareService.ShareTextAsync`'s
   `uri` is required as well (pass `null` for none), since a required token cannot follow an optional
   parameter.
