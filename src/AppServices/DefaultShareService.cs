@@ -51,8 +51,8 @@ public sealed class DefaultShareService : IShareService
     public ValueTask<ShareOutcome> ShareTextAsync(
         string title,
         string text,
-        string? uri = null,
-        CancellationToken cancellationToken = default)
+        string? uri,
+        CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -143,7 +143,7 @@ public sealed class DefaultShareService : IShareService
     public ValueTask<ShareOutcome> ShareFileAsync(
         string title,
         string filePath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {

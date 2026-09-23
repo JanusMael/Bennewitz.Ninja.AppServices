@@ -38,8 +38,8 @@ public interface IShareService
     ValueTask<ShareOutcome> ShareTextAsync(
         string title,
         string text,
-        string? uri = null,
-        CancellationToken cancellationToken = default);
+        string? uri,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Hands a file payload to the desktop, and reports what that turned out to be.
@@ -52,5 +52,5 @@ public interface IShareService
     ValueTask<ShareOutcome> ShareFileAsync(
         string title,
         string filePath,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken);
 }

@@ -47,7 +47,7 @@ public interface IShellLauncher
     ///     tilix → konsole → lxterminal → xterm.</item>
     /// </list>
     /// </remarks>
-    ValueTask<LaunchResult> LaunchTerminalWithCommandAsync(string command, CancellationToken cancellationToken = default);
+    ValueTask<LaunchResult> LaunchTerminalWithCommandAsync(string command, CancellationToken cancellationToken);
 
     /// <summary>
     /// Opens the platform file manager showing the folder that contains
@@ -69,7 +69,7 @@ public interface IShellLauncher
     ///     opening the parent directory when the file manager cannot select a single file.</item>
     /// </list>
     /// </remarks>
-    ValueTask<LaunchResult> RevealInFileManagerAsync(string filePath, CancellationToken cancellationToken = default);
+    ValueTask<LaunchResult> RevealInFileManagerAsync(string filePath, CancellationToken cancellationToken);
 
     /// <summary>Opens <paramref name="filePath"/> in the platform default text editor.</summary>
     /// <param name="filePath">Absolute path to open. A relative path is rejected rather than resolved.</param>
@@ -87,7 +87,7 @@ public interface IShellLauncher
     ///   <item><b>Linux</b> — <c>xdg-open "&lt;path&gt;"</c> defers to the desktop environment.</item>
     /// </list>
     /// </remarks>
-    ValueTask<LaunchResult> OpenInDefaultEditorAsync(string filePath, CancellationToken cancellationToken = default);
+    ValueTask<LaunchResult> OpenInDefaultEditorAsync(string filePath, CancellationToken cancellationToken);
 
     /// <summary>Opens <paramref name="url"/> in the platform default browser.</summary>
     /// <param name="url">The URL to open. Empty or whitespace is rejected.</param>
@@ -105,5 +105,5 @@ public interface IShellLauncher
     ///   <item><b>Linux</b> — <c>xdg-open "&lt;url&gt;"</c> defers to the desktop environment.</item>
     /// </list>
     /// </remarks>
-    ValueTask<LaunchResult> LaunchUrlAsync(string url, CancellationToken cancellationToken = default);
+    ValueTask<LaunchResult> LaunchUrlAsync(string url, CancellationToken cancellationToken);
 }

@@ -54,7 +54,7 @@ public sealed class ShellLauncher : IShellLauncher
     /// <inheritdoc />
     public ValueTask<LaunchResult> LaunchTerminalWithCommandAsync(
         string command,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -92,7 +92,7 @@ public sealed class ShellLauncher : IShellLauncher
     /// <inheritdoc />
     public ValueTask<LaunchResult> RevealInFileManagerAsync(
         string filePath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -125,7 +125,7 @@ public sealed class ShellLauncher : IShellLauncher
     /// <inheritdoc />
     public ValueTask<LaunchResult> OpenInDefaultEditorAsync(
         string filePath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -174,7 +174,7 @@ public sealed class ShellLauncher : IShellLauncher
     /// <inheritdoc />
     public ValueTask<LaunchResult> LaunchUrlAsync(
         string url,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
