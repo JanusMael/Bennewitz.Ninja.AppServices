@@ -1,4 +1,5 @@
 using Bennewitz.Ninja.AppServices.Logging;
+using Serilog;
 using Serilog.Events;
 
 namespace Bennewitz.Ninja.AppServices.AvaloniaUI;
@@ -73,16 +74,52 @@ public sealed class AvaloniaDiagnosticsOptions
     public bool EnableTraceSink { get; init; } = true;
 
     /// <summary>
+    /// Extends the application log pipeline <see cref="AvaloniaDiagnostics.ConfigureLogging"/>
+    /// builds: add sinks, enrichers or filters of your own. Called once, after the built-in sinks are
+    /// attached and before the logger is created. Defaults to <see langword="null"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⭐ <b>The extension point for any in-app view of the log</b> — a live log window, a status
+    /// strip, a crash reporter. This package ships no such window and binds no key: a host that
+    /// wants a viewer attaches its sink here and decides for itself how the viewer is shown.
+    /// </para>
+    /// <para>
+    /// ⚠ Runs inside <c>ConfigureLogging</c>, which runs before any logging exists, so an exception
+    /// thrown here propagates to the caller instead of being logged. That is deliberate: a broken
+    /// log pipeline is a start-up misconfiguration, not something to discover later.
+    /// </para>
+    /// </remarks>
+    public Action<LoggerConfiguration>? ConfigureLogger { get; init; }
+
+    /// <summary>
+    /// Receives every line passed to <see cref="AvaloniaDiagnostics.EnqueueEvent"/>, whether or not
+    /// <see cref="EnableEventLogFile"/> is set. Defaults to <see langword="null"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The live half of host-fed events, as <see cref="EnableEventLogFile"/> is the durable half:
+    /// attach a view here to watch events as they happen. Like <see cref="ConfigureLogger"/>, it
+    /// names no window and no key; how the view is shown is the host's business.
+    /// </para>
+    /// <para>
+    /// ⚠ Called synchronously on whichever thread enqueued, possibly several at once, so it must be
+    /// thread-safe and must not block. Anything it throws is swallowed: enqueuing an event is a
+    /// diagnostic side channel, and a listener's bug must not break the code path that reported it.
+    /// </para>
+    /// </remarks>
+    public Action<string>? EventListener { get; init; }
+
+    /// <summary>
     /// Also persist host-fed events (<see cref="AvaloniaDiagnostics.EnqueueEvent"/>) to their own
     /// rolling file, separate from the main application log. Defaults to <c>false</c> (opt-in).
     /// </summary>
     /// <remarks>
     /// <para>
     /// ⭐ <b>A separate FILE, not a separate level.</b> The event stream is deliberately outside
-    /// the Serilog pipeline so host-domain chatter does not pollute the app log, and it once
-    /// existed only in a live-only tail window. That made a question like "did the file watcher
-    /// fire while I was editing?" unanswerable after the fact, and impossible to hand to anyone
-    /// else. The window is held back from the first release; the file is not.
+    /// the Serilog pipeline so host-domain chatter does not pollute the app log. A live-only view
+    /// makes a question like "did the file watcher fire while I was editing?" unanswerable after the
+    /// fact, and impossible to hand to anyone else. <see cref="EventListener"/> is the live half.
     /// </para>
     /// <para>
     /// ⚠ Nothing is written unless the host enqueues.

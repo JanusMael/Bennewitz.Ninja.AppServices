@@ -75,8 +75,9 @@ public static class AvaloniaDiagnostics
     /// <summary>
     /// Full path of the file the rolling sink is currently writing to, or
     /// <c>null</c> if <see cref="ConfigureLogging"/> has not been called or no
-    /// event has been emitted yet. Convenient for "Open current log" menu
-    /// items outside of the F12 window.
+    /// event has been emitted yet. Convenient for an "Open current log" menu
+    /// item, or for a log viewer attached through
+    /// <see cref="AvaloniaDiagnosticsOptions.ConfigureLogger"/>.
     /// </summary>
     public static string? CurrentLogFilePath => _fileSink?.CurrentFilePath;
 
@@ -147,6 +148,10 @@ public static class AvaloniaDiagnostics
             config = config.WriteTo.Trace();
         }
 
+        // The consumer's extension point: after the built-in sinks, before the logger exists.
+        // WriteTo/Enrich mutate this same configuration, so the callback's return is not needed.
+        options.ConfigureLogger?.Invoke(config);
+
         Log.Logger = config.CreateLogger();
 
         if (options.BridgeAvaloniaLogger)
@@ -199,9 +204,41 @@ public static class AvaloniaDiagnostics
     /// </summary>
     public static void EnqueueEvent(string line)
     {
-        // The file is what survives the session and can be handed to someone else. The live
-        // window this once also fed is held back from the first release.
+        // The durable half: the file survives the session and can be handed to someone else.
         _eventLogger?.Information("{EventLine}", line);
+
+        // The live half, if the host attached one. Independent of the file: either, both or
+        // neither. A listener's exception is swallowed -- see EventListener's remarks.
+        if (_options?.EventListener is { } listener)
+        {
+            try
+            {
+                listener(line);
+            }
+            catch
+            {
+                // Deliberately swallowed: this call is a diagnostic side channel.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns this static bootstrap to its unconfigured state, so a test can call
+    /// <see cref="ConfigureLogging"/> again. Disposes the file sinks it created.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Test-only. It does not restore <see cref="Log.Logger"/> or Avalonia's logger sink, which
+    /// the caller owns; a test that configures logging must put those back itself.
+    /// </remarks>
+    internal static void ResetForTests()
+    {
+        _eventLogger?.Dispose();
+        _eventLogger = null;
+        _eventFileSink?.Dispose();
+        _eventFileSink = null;
+        _fileSink?.Dispose();
+        _fileSink = null;
+        _options = null;
     }
 
     /// <summary>
