@@ -35,7 +35,11 @@ public interface IShareService
     /// The three platforms do genuinely different things, and an implementation that can reach
     /// none of them returns <see cref="ShareOutcome.Unavailable"/> rather than completing quietly.
     /// </returns>
-    Task<ShareOutcome> ShareTextAsync(string title, string text, string? uri = null);
+    ValueTask<ShareOutcome> ShareTextAsync(
+        string title,
+        string text,
+        string? uri = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Hands a file payload to the desktop, and reports what that turned out to be.
@@ -45,5 +49,8 @@ public interface IShareService
     /// The action actually taken. A path that is not on disk is
     /// <see cref="ShareOutcome.Unavailable"/>, not <see cref="ShareOutcome.Failed"/>.
     /// </returns>
-    Task<ShareOutcome> ShareFileAsync(string title, string filePath);
+    ValueTask<ShareOutcome> ShareFileAsync(
+        string title,
+        string filePath,
+        CancellationToken cancellationToken = default);
 }

@@ -13,50 +13,92 @@ namespace Bennewitz.Ninja.AppServices;
 /// All platform-branching is contained here so callers remain portable.
 /// </summary>
 /// <remarks>
-/// Use <see cref="Instance"/> for the shared singleton.  The class can also
-/// be subclassed or replaced for testing via the interface.
+/// <para>
+/// Use <see cref="Instance"/> for the shared singleton, or construct one with a
+/// <see cref="DiagnosticSink"/> when you want the narrative a <see cref="LaunchResult"/> cannot
+/// carry. The class can also be replaced wholesale through the interface for testing.
+/// </para>
+/// <para>
+/// ⛔ <b>Every public method is asynchronous and none of the implementations are.</b> That is
+/// deliberate and is explained on the interface: an async signature wraps a synchronous body for
+/// free, while the reverse can only be done by blocking. These return
+/// <see cref="ValueTask{TResult}"/> from an already-completed result, so the cost is a struct.
+/// </para>
 /// </remarks>
 public sealed class ShellLauncher : IShellLauncher
 {
-    /// <summary>Shared singleton; suitable for all callers that do not need DI.</summary>
+    /// <summary>
+    /// Shared singleton with no diagnostic sink; suitable for all callers that do not need DI.
+    /// </summary>
     public static readonly ShellLauncher Instance = new();
 
-    private ShellLauncher()
+    private readonly DiagnosticSink? _diagnostics;
+
+    /// <summary>Create a launcher that reports nothing beyond its <see cref="LaunchResult"/>s.</summary>
+    public ShellLauncher()
     {
     }
+
+    /// <summary>Create a launcher that also narrates to <paramref name="diagnostics"/>.</summary>
+    /// <param name="diagnostics">
+    /// Receives detail a result cannot carry. ⚠ Treated as untrusted: it runs on the calling thread
+    /// and anything it throws is swallowed, because a diagnostic must never be the reason a launch
+    /// fails.
+    /// </param>
+    public ShellLauncher(DiagnosticSink? diagnostics) => _diagnostics = diagnostics;
 
     // -----------------------------------------------------------------------
     // IShellLauncher — public surface
     // -----------------------------------------------------------------------
 
     /// <inheritdoc />
-    public bool LaunchTerminalWithCommand(string command)
+    public ValueTask<LaunchResult> LaunchTerminalWithCommandAsync(
+        string command,
+        CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ValueTask.FromResult(LaunchResult.Cancelled());
+        }
+
         try
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 LaunchWindowsTerminal(command);
-                return true;
+                return ValueTask.FromResult(LaunchResult.Ok());
             }
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 LaunchMacTerminal(command);
-                return true;
+                return ValueTask.FromResult(LaunchResult.Ok());
             }
 
-            return LaunchLinuxTerminal(command);
+            // ⭐ The one place the old bool carried two meanings. Exhausting the emulator list is
+            // NOT a failure -- there is no terminal to launch -- so the caller should offer a Copy
+            // fallback rather than report that something went wrong.
+            return ValueTask.FromResult(
+                LaunchLinuxTerminal(command)
+                    ? LaunchResult.Ok()
+                    : LaunchResult.Unsupported("no known terminal emulator is installed"));
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            return ValueTask.FromResult(Classify(ex, "launching a terminal"));
         }
     }
 
     /// <inheritdoc />
-    public void RevealInFileManager(string filePath)
+    public ValueTask<LaunchResult> RevealInFileManagerAsync(
+        string filePath,
+        CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ValueTask.FromResult(LaunchResult.Cancelled());
+        }
+
         try
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -71,59 +113,37 @@ public sealed class ShellLauncher : IShellLauncher
             {
                 RevealLinux(filePath);
             }
+
+            return ValueTask.FromResult(LaunchResult.Ok());
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently ignore — no meaningful fallback.
+            return ValueTask.FromResult(Classify(ex, "revealing a file"));
         }
     }
 
     /// <inheritdoc />
-    public void LaunchUrl(string url)
+    public ValueTask<LaunchResult> OpenInDefaultEditorAsync(
+        string filePath,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(url))
+        if (cancellationToken.IsCancellationRequested)
         {
-            return;
+            return ValueTask.FromResult(LaunchResult.Cancelled());
         }
 
-        try
-        {
-            // Process.Start returns a Process? whose handle is owned by the caller
-            // even when UseShellExecute=true. The discard `using` ensures Dispose
-            // runs immediately so the handle is not held until GC.
-            using Process? _ =
-                RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                    ? Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true })
-                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-                        ? Process.Start(new ProcessStartInfo
-                            { FileName = "open", ArgumentList = { url }, UseShellExecute = false })
-                        : Process.Start(new ProcessStartInfo
-                            { FileName = "xdg-open", ArgumentList = { url }, UseShellExecute = false });
-        }
-        catch (Exception ex) when (ex is Win32Exception
-                                       or InvalidOperationException
-                                       or FileNotFoundException
-                                       or PlatformNotSupportedException)
-        {
-            // Non-fatal — URL opening is purely cosmetic. The caller is expected
-            // to surface a copy-link / "open in browser failed" affordance.
-            _ = ex;
-        }
-    }
-
-    /// <inheritdoc />
-    public void OpenInDefaultEditor(string filePath)
-    {
+        // A caller error, not a platform one: this method does not resolve a relative path against
+        // a working directory nobody agreed on.
         if (!Path.IsPathRooted(filePath))
         {
-            return;
+            return ValueTask.FromResult(LaunchResult.Failed("path is not absolute"));
         }
 
         try
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                Process.Start(new ProcessStartInfo
+                using Process? _ = Process.Start(new ProcessStartInfo
                 {
                     FileName = filePath,
                     UseShellExecute = true,
@@ -134,18 +154,125 @@ public sealed class ShellLauncher : IShellLauncher
                 ProcessStartInfo psi = new() { FileName = "open", UseShellExecute = false };
                 psi.ArgumentList.Add("-t");
                 psi.ArgumentList.Add(filePath);
-                Process.Start(psi);
+                using Process? _ = Process.Start(psi);
             }
             else
             {
                 ProcessStartInfo psi = new() { FileName = "xdg-open", UseShellExecute = false };
                 psi.ArgumentList.Add(filePath);
-                Process.Start(psi);
+                using Process? _ = Process.Start(psi);
             }
+
+            return ValueTask.FromResult(LaunchResult.Ok());
+        }
+        catch (Exception ex)
+        {
+            return ValueTask.FromResult(Classify(ex, "opening a file in the default editor"));
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<LaunchResult> LaunchUrlAsync(
+        string url,
+        CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ValueTask.FromResult(LaunchResult.Cancelled());
+        }
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return ValueTask.FromResult(LaunchResult.Failed("url is empty"));
+        }
+
+        try
+        {
+            // Process.Start returns a Process? whose handle is owned by the caller even when
+            // UseShellExecute=true. The discard `using` ensures Dispose runs immediately so the
+            // handle is not held until GC.
+            using Process? _ =
+                RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true })
+                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                        ? Process.Start(new ProcessStartInfo
+                            { FileName = "open", ArgumentList = { url }, UseShellExecute = false })
+                        : Process.Start(new ProcessStartInfo
+                            { FileName = "xdg-open", ArgumentList = { url }, UseShellExecute = false });
+
+            return ValueTask.FromResult(LaunchResult.Ok());
+        }
+        catch (Exception ex)
+        {
+            return ValueTask.FromResult(Classify(ex, "opening a url"));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Failure classification
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Turn an exception into the status a caller can act on, and narrate it to the sink.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ <b>The Win32 error codes are the load-bearing part.</b> <see cref="Win32Exception"/> is
+    /// what <see cref="Process.Start(ProcessStartInfo)"/> throws for almost everything, so without
+    /// reading <see cref="Win32Exception.NativeErrorCode"/> a missing program and a refused one
+    /// arrive identically — which is the collapse this whole type exists to undo.
+    /// </remarks>
+    private LaunchResult Classify(Exception ex, string what)
+    {
+        const int ErrorFileNotFound = 2;
+        const int ErrorPathNotFound = 3;
+        const int ErrorAccessDenied = 5;
+        const int ErrorCancelled = 1223; // the user dismissed a UAC or handler prompt
+
+        LaunchResult result = ex switch
+        {
+            OperationCanceledException => LaunchResult.Cancelled(),
+            PlatformNotSupportedException => LaunchResult.Unsupported(ex.Message),
+            FileNotFoundException or DirectoryNotFoundException => LaunchResult.NotFound(ex.Message),
+            UnauthorizedAccessException => LaunchResult.Denied(ex.Message),
+            Win32Exception w => w.NativeErrorCode switch
+            {
+                ErrorFileNotFound or ErrorPathNotFound => LaunchResult.NotFound(w.Message),
+                ErrorAccessDenied => LaunchResult.Denied(w.Message),
+                ErrorCancelled => LaunchResult.Cancelled(w.Message),
+                _ => LaunchResult.Failed(w.Message),
+            },
+            _ => LaunchResult.Failed(ex.Message),
+        };
+
+        Report(
+            result.Status == LaunchStatus.Unsupported ? DiagnosticLevel.Information : DiagnosticLevel.Warning,
+            $"{what} ended as {result.Status}",
+            ex);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Hand one line to the sink, if there is one, without letting it break the caller.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A sink is consumer code running on this thread. Letting it throw would turn a diagnostic
+    /// into the cause of the failure it was describing.
+    /// </remarks>
+    private void Report(DiagnosticLevel level, string message, Exception? exception)
+    {
+        if (_diagnostics is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _diagnostics(level, message, exception);
         }
         catch
         {
-            // Silently ignore — no meaningful fallback.
+            // Deliberately swallowed. See the remarks.
         }
     }
 

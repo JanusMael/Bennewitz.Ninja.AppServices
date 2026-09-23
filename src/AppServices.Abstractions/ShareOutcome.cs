@@ -42,6 +42,15 @@ public enum ShareOutcome
     Unavailable,
 
     /// <summary>
+    /// The caller cancelled before anything was attempted.
+    /// ⚠ Kept distinct from <see cref="Failed"/> for the same reason <see cref="Unavailable"/> is:
+    /// nothing went wrong, so a caller must not report one. Reporting a cancellation as a failure
+    /// is the exact collapse this enum exists to avoid, and it is easy to reintroduce when a
+    /// cancellation path is added to a type that had none.
+    /// </summary>
+    Cancelled,
+
+    /// <summary>
     /// The text is on the system clipboard — <c>clip.exe</c> on Windows, <c>pbcopy</c> on macOS.
     /// The action every share sheet contains anyway, and the only one available without a
     /// platform TFM.

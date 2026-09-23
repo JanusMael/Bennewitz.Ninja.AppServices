@@ -48,14 +48,23 @@ public sealed class DefaultShareService : IShareService
     }
 
     /// <inheritdoc />
-    public Task<ShareOutcome> ShareTextAsync(string title, string text, string? uri = null)
+    public ValueTask<ShareOutcome> ShareTextAsync(
+        string title,
+        string text,
+        string? uri = null,
+        CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ValueTask.FromResult(ShareOutcome.Cancelled);
+        }
+
         if (OperatingSystem.IsMacOS())
         {
             if (!string.IsNullOrEmpty(uri))
             {
                 // Open URI in the default browser.
-                return Task.FromResult(
+                return ValueTask.FromResult(
                     TryStart(new ProcessStartInfo
                         { FileName = "open", ArgumentList = { uri }, UseShellExecute = false })
                         ? ShareOutcome.OpenedInBrowser
@@ -67,7 +76,7 @@ public sealed class DefaultShareService : IShareService
                 // macOS has no Share sheet API without NSSharingService (requires a net10.0-macos
                 // TFM). Fall back to pbcopy so the user at least has the text on the clipboard —
                 // analogous to the "Copy" action that every Share sheet contains.
-                return CopyViaPbcopyAsync(text);
+                return new ValueTask<ShareOutcome>(CopyViaPbcopyAsync(text));
             }
         }
         else if (OperatingSystem.IsLinux())
@@ -78,7 +87,7 @@ public sealed class DefaultShareService : IShareService
             // though something had been shared.
             if (string.IsNullOrEmpty(uri) && string.IsNullOrEmpty(text))
             {
-                return Task.FromResult(ShareOutcome.Unavailable);
+                return ValueTask.FromResult(ShareOutcome.Unavailable);
             }
 
             // Linux: construct a mailto: URI and hand it to the desktop handler.
@@ -87,13 +96,13 @@ public sealed class DefaultShareService : IShareService
             bool launched = TryStart(new ProcessStartInfo { FileName = target, UseShellExecute = true });
             if (!launched)
             {
-                return Task.FromResult(ShareOutcome.Failed);
+                return ValueTask.FromResult(ShareOutcome.Failed);
             }
 
             // Which handler ran is decided by what was handed over: a caller-supplied URI goes
             // wherever the desktop sends that scheme, and the fallback is a mailto: by
             // construction.
-            return Task.FromResult(uri is null
+            return ValueTask.FromResult(uri is null
                 ? ShareOutcome.OpenedMailClient
                 : ShareOutcome.OpenedInBrowser);
         }
@@ -102,7 +111,7 @@ public sealed class DefaultShareService : IShareService
             if (!string.IsNullOrEmpty(uri))
             {
                 // Windows: open the URI in the default browser.
-                return Task.FromResult(
+                return ValueTask.FromResult(
                     TryStart(new ProcessStartInfo { FileName = uri, UseShellExecute = true })
                         ? ShareOutcome.OpenedInBrowser
                         : ShareOutcome.Failed);
@@ -122,17 +131,25 @@ public sealed class DefaultShareService : IShareService
                 //
                 // clip.exe is the OS's own clipboard tool, present on every supported Windows,
                 // and takes its payload on stdin - the same shape as pbcopy above.
-                return CopyViaClipExeAsync(text);
+                return new ValueTask<ShareOutcome>(CopyViaClipExeAsync(text));
             }
         }
 
         // Unsupported OS, or nothing to share.
-        return Task.FromResult(ShareOutcome.Unavailable);
+        return ValueTask.FromResult(ShareOutcome.Unavailable);
     }
 
     /// <inheritdoc />
-    public Task<ShareOutcome> ShareFileAsync(string title, string filePath)
+    public ValueTask<ShareOutcome> ShareFileAsync(
+        string title,
+        string filePath,
+        CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ValueTask.FromResult(ShareOutcome.Cancelled);
+        }
+
         // ⚠ `title` is accepted and unused on every platform. It names the share sheet, and none
         // of the three fallbacks opens one — a file manager titles its own window. Kept because
         // it is part of IShareService and a future share-sheet implementation needs it.
@@ -143,7 +160,7 @@ public sealed class DefaultShareService : IShareService
             // Reveal the file in Finder — the user can right-click → Share.
             if (File.Exists(filePath))
             {
-                return Task.FromResult(
+                return ValueTask.FromResult(
                     TryStart(new ProcessStartInfo
                         { FileName = "open", ArgumentList = { "-R", filePath }, UseShellExecute = false })
                         ? ShareOutcome.RevealedInFileManager
@@ -164,7 +181,7 @@ public sealed class DefaultShareService : IShareService
             string? dir = Path.GetDirectoryName(filePath);
             if (File.Exists(filePath) && !string.IsNullOrEmpty(dir) && Directory.Exists(dir))
             {
-                return Task.FromResult(
+                return ValueTask.FromResult(
                     TryStart(new ProcessStartInfo
                         { FileName = "xdg-open", ArgumentList = { dir }, UseShellExecute = false })
                         ? ShareOutcome.RevealedInFileManager
@@ -179,7 +196,7 @@ public sealed class DefaultShareService : IShareService
             // inner quotes, which causes explorer.exe to silently ignore the argument.
             if (File.Exists(filePath))
             {
-                return Task.FromResult(
+                return ValueTask.FromResult(
                     TryStart(new ProcessStartInfo
                     {
                         FileName = "explorer.exe",
@@ -193,7 +210,7 @@ public sealed class DefaultShareService : IShareService
 
         // Unsupported OS, or the path is not on disk. ⚠ Not a failure — nothing was attempted,
         // and the two are distinguished because the status pill keeps a failure on screen.
-        return Task.FromResult(ShareOutcome.Unavailable);
+        return ValueTask.FromResult(ShareOutcome.Unavailable);
     }
 
     /// <summary>
