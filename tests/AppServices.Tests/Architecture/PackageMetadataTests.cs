@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Xml.Linq;
 
 namespace AppServices.Tests.Architecture;
@@ -104,6 +105,42 @@ public sealed class PackageMetadataTests
             "A package would publish without usable metadata:\n  " + string.Join("\n  ", undescribed)
             + "\n\nDescription is what a consumer reads on nuget.org before deciding, and PackageTags "
             + "is how they arrive there at all.");
+    }
+
+    [Fact]
+    public void Every_shipped_assembly_is_marked_trimmable()
+    {
+        // ⛔ Read off the COMPILED assembly, never the project file. IsTrimmable is inherited from
+        // src/Directory.Build.props, so no csproj mentions it; and what a consumer's TrimMode=partial
+        // publish obeys is the mark inside the DLL and nothing else. The first releases of this
+        // family shipped without it, and no build or test noticed -- which is why this exists.
+        string output = Path.GetDirectoryName(typeof(PackageMetadataTests).Assembly.Location)!;
+        List<string> unmarked = [];
+
+        foreach (string project in ProjectFiles().Select(Path.GetFileNameWithoutExtension).Select(n => n!))
+        {
+            string path = Path.Combine(output, project + ".dll");
+
+            // Without this, a project missing from the output would be skipped rather than
+            // checked, and the guard would pass on whatever it happened to find.
+            Assert.True(File.Exists(path), $"{project}.dll is not in {output}, so its mark cannot be checked.");
+
+            bool marked = Assembly.LoadFrom(path)
+                .GetCustomAttributes<AssemblyMetadataAttribute>()
+                .Any(a => a.Key == "IsTrimmable"
+                          && string.Equals(a.Value, "True", StringComparison.OrdinalIgnoreCase));
+
+            if (!marked)
+            {
+                unmarked.Add(project);
+            }
+        }
+
+        Assert.True(
+            unmarked.Count == 0,
+            "These shipped assemblies are not marked trimmable:\n  " + string.Join("\n  ", unmarked)
+            + "\n\nAn app publishing with TrimMode=partial trims ONLY marked assemblies, so these "
+            + "would ship whole and outside its trim analysis. Check src/Directory.Build.props.");
     }
 
     private static string? Property(string projectFile, string name) =>

@@ -1,0 +1,49 @@
+<Project>
+  <!-- MSBuild applies only the CLOSEST Directory.Build.props, so the repository root's settings
+       have to be imported explicitly. Without this line every shipped project silently loses the
+       root's TargetFramework, nullable settings, package metadata and AutoVersioning reference,
+       and nothing says so, because the defaults it falls back to still compile. Same idiom as
+       tests/Directory.Build.props. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      Every shipped assembly declares itself trimmable.
+
+      ⛔ This travels INSIDE the package. IsTrimmable is compiled into the assembly as
+      [AssemblyMetadata("IsTrimmable", "True")], and an app publishing with TrimMode=partial trims
+      ONLY assemblies carrying that mark. Leave it off and a consumer's trimmed publish keeps these
+      assemblies whole and outside its trim analysis. Nothing fails; the publish is just larger,
+      and silent about it.
+
+      ⚠ Learned the expensive way: the first releases of the AppServices and ScopedEditors packages
+      shipped without it. Their source repository set it in a nested src/Directory.Build.props that
+      a file-by-file move never read, and this template did not set it at all. The code itself
+      measured clean both times; only the declaration was missing, which is exactly the kind of
+      loss that no build and no test notices on its own. PackageMetadataTests now reads the mark
+      off the COMPILED assembly so it cannot go missing quietly again.
+    -->
+    <IsTrimmable>true</IsTrimmable>
+
+    <!--
+      Run the Roslyn trim analyser at THIS repository's build, so a trim break reddens a plain
+      `dotnet build -c Release` here rather than surfacing later in somebody else's app publish,
+      attributed to an assembly that app cannot edit.
+
+      ⛔ A packaged library is outside every consuming app's build graph, so nothing downstream
+      will ever run the analyser on this code again. If it does not run here, it does not run.
+
+      ⚠ The analyser cannot see compiled XAML. XamlIl weaves that IL into the assembly after Roslyn
+      has finished, so a library with .axaml files needs an ILLink pass as well: a trimmed publish
+      of a consumer that roots each assembly with TrimmerRootAssembly and sets
+      TrimmerSingleWarn=false.
+
+      ⛔ IsAotCompatible is deliberately NOT set. It would also switch on the AOT and single-file
+      analysers, which is a claim about these libraries that nothing has measured.
+
+      Scoped to src/ deliberately: tests/ has its own Directory.Build.props, is never published or
+      trimmed, and reflects over assemblies on purpose, so analysing it would be noise.
+    -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+</Project>
