@@ -18,7 +18,8 @@
 
       ⚠ Learned the expensive way: the first releases of the AppServices and ScopedEditors packages
       shipped without it. Their source repository set it in a nested src/Directory.Build.props that
-      a file-by-file move never read, and this template did not set it at all. The code itself
+      a file-by-file move never read, and the bbpkg template they were generated from did not set
+      it at all. It does now, which is why every repository generated since has this file. The code itself
       measured clean both times; only the declaration was missing, which is exactly the kind of
       loss that no build and no test notices on its own. PackageMetadataTests now reads the mark
       off the COMPILED assembly so it cannot go missing quietly again.
