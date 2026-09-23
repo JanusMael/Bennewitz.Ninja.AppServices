@@ -3,7 +3,7 @@ using AvaloniaLevel = Avalonia.Logging.LogEventLevel;
 using SerilogLevel = Serilog.Events.LogEventLevel;
 using SerilogLog = Serilog.Log;
 
-namespace Bennewitz.Ninja.AppServices.Avalonia;
+namespace Bennewitz.Ninja.AppServices.AvaloniaUI;
 
 /// <summary>
 /// Bridges Avalonia's internal logging (<see cref="global::Avalonia.Logging.Logger"/>)

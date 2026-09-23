@@ -51,7 +51,7 @@ public sealed class LayeringTests
         new("AppServices.Logging", [], ["Avalonia", "CommunityToolkit"]),
 
         // The only tier allowed to see Avalonia.
-        new("AppServices.Avalonia",
+        new("AppServices.AvaloniaUI",
             ["AppServices.Abstractions", "AppServices", "AppServices.Logging"],
             ["CommunityToolkit"]),
     ];
@@ -87,7 +87,7 @@ public sealed class LayeringTests
             foreach (string reference in ProjectReferences(tier.Project))
             {
                 // Every path segment, not just the file name: a project file need not be named
-                // after its directory, so "../AppServices.Avalonia/Renamed.csproj" is a real
+                // after its directory, so "../AppServices.AvaloniaUI/Renamed.csproj" is a real
                 // violation a file-name-only check waves through.
                 string[] segments = reference.Replace('\\', '/')
                     .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

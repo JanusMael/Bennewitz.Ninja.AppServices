@@ -13,7 +13,7 @@ using Avalonia.Platform.Storage;
 using Bennewitz.Ninja.AppServices.Abstractions.Dialogs;
 using Bennewitz.Ninja.AppServices.Abstractions;
 
-namespace Bennewitz.Ninja.AppServices.Avalonia;
+namespace Bennewitz.Ninja.AppServices.AvaloniaUI;
 
 /// <summary>
 /// Avalonia implementation of <see cref="IDialogService"/>.

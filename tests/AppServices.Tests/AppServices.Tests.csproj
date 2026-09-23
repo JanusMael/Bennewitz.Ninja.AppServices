@@ -4,6 +4,6 @@
     <ProjectReference Include="..\..\src\AppServices.Abstractions\AppServices.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\AppServices\AppServices.csproj" />
     <ProjectReference Include="..\..\src\AppServices.Logging\AppServices.Logging.csproj" />
-    <ProjectReference Include="..\..\src\AppServices.Avalonia\AppServices.Avalonia.csproj" />
+    <ProjectReference Include="..\..\src\AppServices.AvaloniaUI\AppServices.AvaloniaUI.csproj" />
   </ItemGroup>
 </Project>

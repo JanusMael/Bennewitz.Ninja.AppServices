@@ -7,7 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-namespace Bennewitz.Ninja.AppServices.Avalonia.Dialogs;
+namespace Bennewitz.Ninja.AppServices.AvaloniaUI.Dialogs;
 
 /// <summary>
 /// A fully programmatic fatal-error dialog shown when an unhandled exception

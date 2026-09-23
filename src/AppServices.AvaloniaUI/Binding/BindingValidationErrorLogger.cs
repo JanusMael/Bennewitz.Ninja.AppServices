@@ -6,7 +6,7 @@ using Avalonia.Controls;
 using Avalonia.LogicalTree;
 using Serilog;
 
-namespace Bennewitz.Ninja.AppServices.Avalonia.Binding;
+namespace Bennewitz.Ninja.AppServices.AvaloniaUI.Binding;
 
 /// <summary>
 /// Logs every Avalonia binding validation error that lands in

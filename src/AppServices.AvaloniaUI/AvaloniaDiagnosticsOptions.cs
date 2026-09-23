@@ -1,7 +1,7 @@
 using Bennewitz.Ninja.AppServices.Logging;
 using Serilog.Events;
 
-namespace Bennewitz.Ninja.AppServices.Avalonia;
+namespace Bennewitz.Ninja.AppServices.AvaloniaUI;
 
 /// <summary>
 /// Configuration for the one-line <see cref="AvaloniaDiagnostics"/> bootstrap.

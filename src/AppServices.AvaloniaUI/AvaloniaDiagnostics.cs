@@ -1,14 +1,14 @@
-using Bennewitz.Ninja.AppServices.Avalonia.Binding;
-using Bennewitz.Ninja.AppServices.Avalonia.Dialogs;
+using Bennewitz.Ninja.AppServices.AvaloniaUI.Binding;
+using Bennewitz.Ninja.AppServices.AvaloniaUI.Dialogs;
 using Bennewitz.Ninja.AppServices.Dialogs;
 using Bennewitz.Ninja.AppServices.Logging;
 using Serilog;
 using AvaloniaLogger = Avalonia.Logging.Logger;
 
-namespace Bennewitz.Ninja.AppServices.Avalonia;
+namespace Bennewitz.Ninja.AppServices.AvaloniaUI;
 
 /// <summary>
-/// One-stop bootstrap for the <c>Bennewitz.Ninja.AppServices.Avalonia</c>
+/// One-stop bootstrap for the <c>Bennewitz.Ninja.AppServices.AvaloniaUI</c>
 /// diagnostics pipeline.
 /// <para>
 /// Intended usage is three calls in total from a host Avalonia app:
