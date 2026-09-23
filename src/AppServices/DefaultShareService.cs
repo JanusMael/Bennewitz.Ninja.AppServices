@@ -214,11 +214,6 @@ public sealed class DefaultShareService : IShareService
     }
 
     /// <summary>
-    /// Pipes <paramref name="text"/> into <c>pbcopy</c> to place it on the macOS clipboard.
-    /// Used as a Share-sheet substitute when no URI is available and NSSharingService is
-    /// not accessible without the <c>net10.0-macos</c> TFM.
-    /// </summary>
-    /// <summary>
     /// Copies <paramref name="text"/> to the Windows clipboard via <c>clip.exe</c>.
     /// </summary>
     /// <remarks>
@@ -257,6 +252,11 @@ public sealed class DefaultShareService : IShareService
         }
     }
 
+    /// <summary>
+    /// Pipes <paramref name="text"/> into <c>pbcopy</c> to place it on the macOS clipboard.
+    /// Used as a Share-sheet substitute when no URI is available and NSSharingService is
+    /// not accessible without the <c>net10.0-macos</c> TFM.
+    /// </summary>
     private static async Task<ShareOutcome> CopyViaPbcopyAsync(string text)
     {
         try
@@ -293,8 +293,8 @@ public sealed class DefaultShareService : IShareService
     /// produced no output anywhere. <c>Trace</c> carries <c>[Conditional("TRACE")]</c>, which the
     /// SDK defines in Release as well, so this survives into a shipped build.
     /// <para>
-    /// ⚠ It still does not reach Serilog, and deliberately so: this project's references are
-    /// Avalonia plus AgentForge.Abstractions and nothing else, and it is now a published package —
+    /// ⚠ It still does not reach Serilog, and deliberately so: this project's one dependency is
+    /// AppServices.Abstractions, which has none of its own, and it is now a published package —
     /// taking a Serilog dependency for two warning lines is a packaging decision, not a detail.
     /// If these failures need to land in the app log, the cheap route is a static hook here that
     /// each host wires to its own logger.
