@@ -11,15 +11,7 @@
 // "Widget" from one ending in "Widget.2026". A guard that splits on dots is wrong in exactly the
 // cases it exists to catch.
 //
-// ⚠ THIS FILE IS DUPLICATED, DELIBERATELY. The template ships its own copy at
-// templates/bbpkg/scripts/assert-packages.cs. That copy is CONTENT — it is packed, generated into
-// somebody else's repository, and evolves with what generated repositories need. This one is this
-// repository's own build tooling. Pointing the root release workflow at the shipped copy would be
-// less duplication and worse: a template-motivated edit would then change how this repository
-// releases itself, silently. Keep them in step by intent, never by reference.
-//
-// Usage:  dotnet run --file scripts/assert-packages.cs -- <packages-directory>
-//         (the shipped copy needs no --file: see the note in verify-release.cs)
+// Usage:  dotnet run scripts/assert-packages.cs -- <packages-directory>
 
 using System.IO.Compression;
 using System.Xml.Linq;

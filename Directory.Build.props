@@ -16,7 +16,7 @@
     <!-- Bennewitz.Ninja.AutoVersioning source generator: version stamps computed at build time. -->
     <GenerateAutoVersionedAssemblyInfo>true</GenerateAutoVersionedAssemblyInfo>
     <AssemblyCompany>Bennewitz.Ninja</AssemblyCompany>
-    <AssemblyProduct>Templates</AssemblyProduct>
+    <AssemblyProduct>AppServices</AssemblyProduct>
     <CopyrightHolder>Brian Bennewitz</CopyrightHolder>
     <CommitSha Condition="'$(CommitSha)' == ''">$(GITHUB_SHA)</CommitSha>
     <IsContinuousIntegration>$(GITHUB_ACTIONS)</IsContinuousIntegration>
@@ -33,8 +33,8 @@
   <PropertyGroup>
     <Authors>Brian Bennewitz</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/JanusMael/Bennewitz.Ninja.Templates</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/JanusMael/Bennewitz.Ninja.Templates</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/JanusMael/Bennewitz.Ninja.AppServices</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JanusMael/Bennewitz.Ninja.AppServices</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

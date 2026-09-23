@@ -4,8 +4,8 @@
     <IsPackable>true</IsPackable>
     <!-- The id below is derived from the stem passed to `dotnet new bbpkg -n <Stem>`; the assembly
          name stays the bare stem, which is the convention across these repos. -->
-    <PackageId>PKG_ID</PackageId>
-    <AssemblyName>PkgStem</AssemblyName>
+    <PackageId>Bennewitz.Ninja.AppServices</PackageId>
+    <AssemblyName>AppServices</AssemblyName>
     <Description>TODO: what this package does, in the words a consumer would search for.</Description>
     <PackageTags>TODO</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

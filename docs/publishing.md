@@ -17,7 +17,7 @@ Steps 1 and 2 are account-level and have to be done by the nuget.org account own
 ### 1 · Add the `NUGET_USER` variable
 
 ```bash
-gh variable set NUGET_USER --body <your-nuget.org-profile-name> --repo REPO_OWNER/PKG_ID
+gh variable set NUGET_USER --body <your-nuget.org-profile-name> --repo JanusMael/Bennewitz.Ninja.AppServices
 ```
 
 ⭐ **A variable, not a secret.** Trusted publishing carries nothing to leak — this is the
@@ -45,8 +45,8 @@ ids you publish:
 | Field | Value |
 |---|---|
 | Policy owner | your individual account, **not** an organization |
-| Repository Owner | `REPO_OWNER` |
-| Repository | `PKG_ID` |
+| Repository Owner | `JanusMael` |
+| Repository | `Bennewitz.Ninja.AppServices` |
 | Workflow File | `release.yml` |
 | Environment | **leave blank** |
 | Scopes | **Publish new packages** *and* **Publish new versions of existing packages** |
@@ -103,7 +103,7 @@ superseded by a higher one, or unlisted.
 ### 4 · Tag and push
 
 ```bash
-git tag -a v2026.3.920 -m "PKG_ID 2026.3.920"
+git tag -a v2026.3.920 -m "Bennewitz.Ninja.AppServices 2026.3.920"
 git push origin v2026.3.920
 ```
 
@@ -117,7 +117,7 @@ separates a release from the preflight; leaving it blank never publishes.
 ### 5 · Watch the run
 
 ```bash
-gh run watch --repo REPO_OWNER/PKG_ID --exit-status
+gh run watch --repo JanusMael/Bennewitz.Ninja.AppServices --exit-status
 ```
 
 Every gate runs **before** the push, because the push is the irreversible part: build, the full

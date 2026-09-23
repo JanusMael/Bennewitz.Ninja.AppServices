@@ -1,4 +1,4 @@
-namespace Bennewitz.Ninja.PkgStem;
+namespace Bennewitz.Ninja.AppServices;
 
 /// <summary>
 /// A placeholder so the package has something to compile and something to test. Replace it — the

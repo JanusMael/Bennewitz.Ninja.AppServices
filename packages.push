@@ -1,14 +1,12 @@
 # Package ids published to nuget.org, one per line. Blank lines and # comments are ignored.
 #
-# This is the TEMPLATE REPOSITORY's own list, not the one it ships. The shipped pair lives at
-# templates/bbpkg/packages.push and templates/bbpkg/packages.local and is inert content here.
+# This file is machine-read twice: the release workflow names each id explicitly in its push and
+# its GitHub release, and PackagingTests asserts that every packable project appears here or in
+# packages.local. Adding a packable project without classifying it FAILS THE BUILD, which is the
+# whole point — the alternative is discovering it after a permanent publish.
 #
-# ⭐ This repository uses the guard it teaches. One id today is not a reason to skip it: the
-# argument for skipping is always "there is only one package", which is true right up until the
-# release that adds a second — and by then the habit of naming them by hand is established.
-#
-# ⛔ Every id here must be covered by this repository's ONE trusted-publishing policy. nuget.org
+# ⛔ Every id here must be covered by the repository's ONE trusted-publishing policy. nuget.org
 # mints one API key per token exchange scoped to one matching policy, so a policy per id does not
 # work: the first id publishes permanently and the rest are rejected 403 in the same command.
 
-Bennewitz.Ninja.Templates
+Bennewitz.Ninja.AppServices

@@ -1,18 +1,11 @@
 name: Release
 
-# The TEMPLATE REPOSITORY's own release. Triggered by a version tag (v1.2.3), or dispatched.
+# Triggered by a version tag (v1.2.3), or dispatched by hand.
 #
 # ⛔ A PUBLISHED NUGET VERSION CAN NEVER BE REPLACED. Everything this repository otherwise
-# treats as recoverable becomes permanent past the push step, so the gates below — test, pack,
-# the packed-vs-declared check, and the full end-to-end verify-release — all run before it, and
-# --skip-duplicate makes a re-run of a completed release a no-op rather than a failure.
-#
-# ⚠ This workflow is NOT the one the template ships. That one lives at
-# templates/bbpkg/.github/workflows/release.yml and never runs here, because Actions only reads
-# the repository root. Releasing this package therefore proves nothing about the shipped file;
-# PackagingTests asserts both by path, and verify-release generates a repository and runs the
-# shipped logic through pack. Neither is a real publish, and the plan says so rather than
-# implying otherwise.
+# treats as recoverable becomes permanent past the push step, so the gates below — build,
+# test, pack, and the packed-vs-declared check — all run before it, and --skip-duplicate makes
+# a re-run of a completed release a no-op rather than a failure.
 
 on:
   push:
@@ -31,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g. 2026.3.921). LEAVE BLANK to only preflight credentials.'
+        description: 'Version to release (e.g. 2026.3.920). LEAVE BLANK to only preflight credentials.'
         required: false
 
 env:
@@ -58,8 +51,8 @@ jobs:
       # GitHub masks a secret in logs, so a bad value turns nuget.org's already-ambiguous 401 into
       #     No matching trust policy owned by user '***' was found
       # which hides whether the value was a username, an email, or — the natural mistake, given
-      # the push below takes --api-key — an API key. That masking cost six blind preflight runs on
-      # 2026-09-21 before the value was simply read out loud. As a variable the error names it.
+      # the push below takes --api-key — an API key. Set it with:
+      #     gh variable set NUGET_USER --body <your-nuget.org-profile-name>
       #
       # Read at JOB level so the steps below can test it. (A secret could not be tested in a
       # step's own `if` at all; a variable can, but the job-level read keeps one home for it.)
@@ -100,41 +93,28 @@ jobs:
           echo "::error::and a GitHub Release would be created for a package that never shipped."
           exit 1
 
-      # PackagingTests reads the project files, the two package lists and BOTH release workflows.
-      # There is no build step of its own: the packaging project compiles nothing, so `dotnet test`
-      # building this one project is the whole of what there is to compile.
+      - name: Build
+        if: env.RELEASING == 'true'
+        run: dotnet build AppServices.slnx -c Release --nologo -warnaserror -p:Version=${{ env.VERSION }}
+
       - name: Test
         if: env.RELEASING == 'true'
-        run: dotnet test tests/Templates.Tests/Templates.Tests.csproj -c Release
+        run: dotnet test --solution AppServices.slnx --no-build -c Release
 
-      # ⚠ Packed WITHOUT --no-build, unlike a normal package repository. The packaging project has
-      # `Compile Remove="**\*"` and `IncludeBuildOutput=false` — there is no build output for pack
-      # to reuse, so --no-build would only add a way for this to break.
       - name: Pack
         if: env.RELEASING == 'true'
         run: >
-          dotnet pack Bennewitz.Ninja.Templates.csproj -c Release --nologo
+          dotnet pack AppServices.slnx -c Release --no-build --nologo
           -p:Version=${{ env.VERSION }}
           --output ./packages/Release
 
-      # ⛔ The last cheap gate before anything becomes permanent. It checks what pack ACTUALLY
-      # produced, reading each id from the <id> element inside the .nuspec rather than parsing
-      # filenames. A package that appears here and in neither list stops the run.
-      #
-      # ⚠ `--file` is required here and NOT in the shipped workflow: `dotnet run <file.cs>` binds
-      # to the project in the working directory when there is one, and this root holds a Library
-      # .csproj. A generated repository keeps its projects under src/ and tests/.
+      # ⛔ The last gate before anything becomes permanent. PackagingTests already checked the
+      # project files; this checks what pack ACTUALLY produced, reading each id from the <id>
+      # element inside the .nuspec rather than parsing filenames. A package that appears here and
+      # in neither list stops the run.
       - name: Assert packed matches declared
         if: env.RELEASING == 'true'
-        run: dotnet run --file scripts/assert-packages.cs -- ./packages/Release
-
-      # ⭐ The end-to-end gate, and the one specific to a TEMPLATE package. Everything above proves
-      # the package is well-formed; this proves it actually works — installed from the .nupkg,
-      # generating a repository whose tree is asserted and which then builds, tests and packs.
-      # A template that installs and "generates" while emitting garbage passes every check above.
-      - name: Verify the template end to end
-        if: env.RELEASING == 'true'
-        run: dotnet run --file scripts/verify-release.cs
+        run: dotnet run scripts/assert-packages.cs -- ./packages/Release
 
       # Kept immediately before the push: the token this returns is short-lived, and a slow step
       # in between is how it expires before it is used.

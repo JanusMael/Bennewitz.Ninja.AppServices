@@ -1,6 +1,6 @@
-using Bennewitz.Ninja.PkgStem;
+using Bennewitz.Ninja.AppServices;
 
-namespace PkgStem.Tests;
+namespace AppServices.Tests;
 
 /// <summary>
 /// A real passing test from the first run, so a red build after generating means you broke
