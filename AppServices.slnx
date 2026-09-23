@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/AppServices.Abstractions/AppServices.Abstractions.csproj" />
     <Project Path="src/AppServices/AppServices.csproj" />
+    <Project Path="src/AppServices.Logging/AppServices.Logging.csproj" />
+    <Project Path="src/AppServices.Avalonia/AppServices.Avalonia.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AppServices.Tests/AppServices.Tests.csproj" />

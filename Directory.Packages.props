@@ -8,6 +8,18 @@
     <PackageVersion Include="Bennewitz.Ninja.AutoVersioning" Version="2026.3.914" />
   </ItemGroup>
 
+  <ItemGroup Label="UI">
+    <!-- Carried at the version OpenForge2k had these projects on when they moved, so the first
+         published version is the shape that was already building there. -->
+    <PackageVersion Include="Avalonia" Version="12.1.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Logging">
+    <PackageVersion Include="Serilog" Version="4.3.1" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Trace" Version="4.0.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Testing">
     <!-- xunit.v3 on Microsoft.Testing.Platform — see global.json. The VSTest bridge packages are
          deliberately absent; TrxReport is what gives CI its .trx files. -->

@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Framework packages, IsTestProject and OutputType all come from tests/Directory.Build.props. -->
   <ItemGroup>
+    <ProjectReference Include="..\..\src\AppServices.Abstractions\AppServices.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\AppServices\AppServices.csproj" />
+    <ProjectReference Include="..\..\src\AppServices.Logging\AppServices.Logging.csproj" />
+    <ProjectReference Include="..\..\src\AppServices.Avalonia\AppServices.Avalonia.csproj" />
   </ItemGroup>
 </Project>

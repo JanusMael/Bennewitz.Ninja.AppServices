@@ -6,8 +6,12 @@
          name stays the bare stem, which is the convention across these repos. -->
     <PackageId>Bennewitz.Ninja.AppServices</PackageId>
     <AssemblyName>AppServices</AssemblyName>
-    <Description>TODO: what this package does, in the words a consumer would search for.</Description>
-    <PackageTags>TODO</PackageTags>
+    <Description>Default implementations of the application service contracts: shell launching, environment probing, sharing and a native error dialog. Needs an operating system, not a UI framework, so it is usable from a CLI, a service or a test.</Description>
+    <PackageTags>app-services;shell;process;environment;share</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AppServices.Abstractions/AppServices.Abstractions.csproj" />
+  </ItemGroup>
 </Project>

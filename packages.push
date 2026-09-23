@@ -9,4 +9,9 @@
 # mints one API key per token exchange scoped to one matching policy, so a policy per id does not
 # work: the first id publishes permanently and the rest are rejected 403 in the same command.
 
+# All four are covered by the policy pattern `Bennewitz.Ninja.AppServices*` — note no dot before
+# the wildcard, so it matches the bare stem as well as the suffixed siblings.
 Bennewitz.Ninja.AppServices
+Bennewitz.Ninja.AppServices.Abstractions
+Bennewitz.Ninja.AppServices.Logging
+Bennewitz.Ninja.AppServices.Avalonia

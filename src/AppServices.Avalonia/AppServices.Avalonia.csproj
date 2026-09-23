@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <IsPackable>true</IsPackable>
+    <PackageId>Bennewitz.Ninja.AppServices.Avalonia</PackageId>
+    <AssemblyName>AppServices.Avalonia</AssemblyName>
+    <Description>Avalonia implementations of the application service contracts — dialog service, file pickers, fatal and non-fatal dialogs — plus the bridge that routes Avalonia's internal logger and its binding errors into Serilog.</Description>
+    <PackageTags>avalonia;dialogs;file-picker;serilog;diagnostics</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AppServices.Abstractions/AppServices.Abstractions.csproj" />
+    <ProjectReference Include="../AppServices.Logging/AppServices.Logging.csproj" />
+    <!-- ⚠ NOT in the split document's dependency graph, which draws this package reaching only
+         Abstractions. AvaloniaDiagnostics.ShowNativeFatalError wraps NativeErrorDialog, which is
+         a T0 implementation, so the edge already existed in the code and the graph missed it.
+         Kept rather than dropping the wrapper: T3 -> T0 is the natural direction, and removing a
+         convenience the host already calls buys nothing. Recorded as drift. -->
+    <ProjectReference Include="../AppServices/AppServices.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.Trace" />
+  </ItemGroup>
+</Project>
