@@ -14,7 +14,7 @@ on:
   # Two dispatch modes, decided by whether `version` is filled in:
   #
   #   BLANK    credential preflight — logs in to NuGet.org and stops. Proves the trusted-
-  #            publishing policy, the id-token permission and the NUGET_USER secret all line up,
+  #            publishing policy, the id-token permission and the NUGET_USER variable all line up,
   #            WITHOUT cutting a release. Run this before the first tag.
   #   FILLED   a real release, which is the path to use when a tag already exists.
   #
@@ -82,7 +82,7 @@ jobs:
             echo "TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
           fi
 
-      # ⛔ Fail LOUDLY rather than publish nothing quietly. Without this, a tag with the secret
+      # ⛔ Fail LOUDLY rather than publish nothing quietly. Without this, a tag with the variable
       # unset skips the push (which is gated on NUGET_USER) but still creates the GitHub Release
       # below — a green run, a release page, and no package. That false green is worse than a
       # failure, because the next person reads the release as evidence the package shipped.
@@ -92,6 +92,15 @@ jobs:
           echo "::error::NUGET_USER is not set. Refusing to release: the push would be skipped"
           echo "::error::and a GitHub Release would be created for a package that never shipped."
           exit 1
+
+      # ⛔ Nothing publishes from a repository missing what the family conventions prescribe: its
+      # documents, a replaced marker, a description. Runs in the preflight too, so a dispatch with
+      # the version blank reports it before a tag does. A setting that has merely drifted does not
+      # stop a release; CI's `conventions` job reports that.
+      - name: Refuse to release a repository the conventions reject
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: dotnet run --file scripts/repo-conventions.cs -- check --release
 
       - name: Build
         if: env.RELEASING == 'true'
