@@ -7,5 +7,5 @@
 // originals never had.
 //
 // The headless Avalonia tests add a second reason: one session and one dispatcher, which must
-// not be driven by two tests at once. See Headless/HeadlessSessionBootstrap.cs.
+// not be driven by two tests at once. Headless/HeadlessSessionTests.cs guards that premise.
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
