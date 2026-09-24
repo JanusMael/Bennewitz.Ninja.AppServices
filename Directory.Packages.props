@@ -9,9 +9,11 @@
   </ItemGroup>
 
   <ItemGroup Label="UI">
-    <!-- Carried at the version OpenForge2k had these projects on when they moved, so the first
-         published version is the shape that was already building there. -->
-    <PackageVersion Include="Avalonia" Version="12.1.0" />
+    <!-- ⚠ Avalonia 12.1.3 is the FLOOR every consumer inherits, and it is there on purpose. The
+         release carries AvaloniaUI/Avalonia#22151, "Fix UIA selection never reaching the client on
+         Windows", and the family relies on it. Only a desktop platform shows the bug: the headless
+         one never goes through Win32 marshalling, so no test here can see it. -->
+    <PackageVersion Include="Avalonia" Version="12.1.3" />
   </ItemGroup>
 
   <ItemGroup Label="Logging">
@@ -26,7 +28,7 @@
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <!-- A real Avalonia application on a headless platform, for the dialog tests. Pinned to the
          Avalonia version above: the two ship in lockstep. -->
-    <PackageVersion Include="Avalonia.Headless" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.3" />
     <!-- The family's own assembly rules, run as tests over what this repository ships. -->
     <PackageVersion Include="Bennewitz.Ninja.AssemblyQuality" Version="2026.3.922" />
     <!-- ⚠ Same Microsoft.Testing.Platform line as xunit.v3 3.2.2 (1.9.1). A NEWER TrxReport pins
