@@ -1,0 +1,19 @@
+{
+  "description": "Application services for desktop apps — shell launching, environment probing, sharing, dialogs and logging — behind contracts a test can fake without a UI toolkit. Ships as Bennewitz.Ninja.AppServices, .Abstractions, .Logging and .Avalonia.",
+  "homepage": "",
+  "topics": [
+    "csharp",
+    "dotnet",
+    "nuget",
+    "avalonia",
+    "desktop",
+    "serilog",
+    "dialogs"
+  ],
+  "requiredChecks": [
+    "build",
+    "pack"
+  ],
+  "content": [],
+  "undocumented": {}
+}
