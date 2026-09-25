@@ -49,11 +49,11 @@ together at every version.
   dropping the assertion. Every rule now also asserts an empty `Skipped`, and `BNAQ1004` reads
   internal types; none of 925's new checks finds anything here. Tests only.
 
-- **`PackagingTests` fails closed**, the `bbpkg` template's pending fix for a gap FileServer's audit
-  found: a project under `src/` now counts as packable unless its last `IsPackable` says `false`, as
-  the SDK does, rather than only when one says `true`. With a probe project that never mentions
-  `IsPackable`, `PackageMetadataTests.Every_project_states_IsPackable_explicitly` already failed and
-  `Every_packable_project_is_classified` passed; now both fail. Tests only.
+- **`PackagingTests` fails closed** (Templates `74feb10`), the `bbpkg` template's fix for a gap
+  FileServer's audit found: a project under `src/` now counts as packable unless its last
+  `IsPackable` says `false`, as the SDK does, rather than only when one says `true`. With a probe
+  project that never mentions `IsPackable`, `PackageMetadataTests.Every_project_states_IsPackable_explicitly`
+  already failed and `Every_packable_project_is_classified` passed; now both fail. Tests only.
 
 ## Next
 
