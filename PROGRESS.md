@@ -26,6 +26,13 @@ together at every version.
   `check --release` preflight, and its two comments that called `NUGET_USER` a secret were
   corrected.
 
+- **The family's standard build properties** (`plans/00004` in Bennewitz.Ninja.Templates):
+  `IsContinuousIntegration` is gone and AutoVersioning is `2026.3.916` (`a50294e`);
+  `scripts/repo-conventions.cs` evaluates every project against the family's build properties
+  (`ef0f573`, `cf30a9b`); and `.github/repository.json` requires trimming, so the check fails if a
+  library loses `IsTrimmable` or turns `EnableTrimAnalyzer` off (`8e07ab7`). Build and CI only;
+  nothing a package carries changes.
+
 ## Next
 
 1. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
