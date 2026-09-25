@@ -37,7 +37,7 @@ public sealed class LayeringTests
     /// <param name="ForbiddenPackages">
     /// Package-id prefixes it must never declare, with the tier reason.
     /// </param>
-    // Internal, not private: AssemblyQualityTests reads this same table for AQ1003, so the tiers
+    // Internal, not private: AssemblyQualityTests reads this same table for BNAQ1003, so the tiers
     // have ONE home. A second copy would be the list that silently rots.
     internal sealed record Tier(string Project, string[] MayReferenceProjects, string[] ForbiddenPackages);
 
