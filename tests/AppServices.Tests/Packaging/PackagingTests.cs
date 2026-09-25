@@ -175,8 +175,11 @@ public sealed class PackagingTests
         {
             XDocument document = XDocument.Load(project);
 
-            bool packable = document.Descendants("IsPackable")
-                .Any(element => string.Equals(element.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase));
+            // ⛔ Fails closed: a project is packable unless it says otherwise, because the SDK packs a
+            // class library by default. Counting only an explicit IsPackable=true missed exactly the
+            // project nobody classified. The last declaration wins, as it does in MSBuild.
+            bool packable = !string.Equals(
+                document.Descendants("IsPackable").LastOrDefault()?.Value.Trim(), "false", StringComparison.OrdinalIgnoreCase);
 
             if (!packable)
             {
