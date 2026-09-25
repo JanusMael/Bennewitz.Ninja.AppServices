@@ -36,6 +36,19 @@ together at every version.
 - **The `nuget` topic is required only where `packages.push` names an id** (Templates `fb6961a`):
   `scripts/repo-conventions.cs` is the template's current copy. CI only.
 
+- **AssemblyQuality 2026.3.925**, a test dependency; nothing a package carries changes. Rule IDs
+  are now `BNAQ1001`–`BNAQ1004`, and test names, messages and `AGENTS.md` rows follow; the
+  `2026.3.923` row keeps the old ones. The bump failed one test, correctly: `BNAQ1002`'s default
+  JSON set inspects nothing here, because no shipped assembly references a JSON library.
+  **Decided 2026-09-25:** the test adds `Microsoft.Win32` and `System.Runtime.InteropServices`,
+  which every shipped assembly reaches, so a registry key, safe handle or marshalling type in a
+  public signature fails it; seen red on a deliberate leak. Rejected: Serilog outside
+  `AppServices.Logging` (its six findings are `AvaloniaDiagnosticsOptions`' Serilog-typed
+  `MinimumLevel` and `ConfigureLogger`, by design), Avalonia outside `AppServices.AvaloniaUI`
+  (inspects nothing, and `BNAQ1003` already forbids the reference), accepting the zero, and
+  dropping the assertion. Every rule now also asserts an empty `Skipped`, and `BNAQ1004` reads
+  internal types; none of 925's new checks finds anything here. Tests only.
+
 ## Next
 
 1. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
@@ -44,8 +57,13 @@ together at every version.
    `TestCategory=` filter for traits named `Category`; `Parallelization.cs` says
    `SerilogAvaloniaSinkTests` changes static state, which it does not.
 2. **Guard that every project under `src/` has a row in `LayeringTests.Tiers`.** Today a new
-   project with no row is outside the tier checks and AQ1003, and nothing fails.
+   project with no row is outside the tier checks and BNAQ1003, and nothing fails.
 3. **Headless isolation per assembly** is unverified and waits for evidence before
    `[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]` is considered.
 4. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
    here is scheduled for them.
+5. **`DefaultShareService`'s public constructor names `System.Diagnostics.Process`:** its test seam
+   `Func<ProcessStartInfo, Process?>?` is public API of `Bennewitz.Ninja.AppServices`, which a
+   `BNAQ1002` over `System.Diagnostics` reports. The tests already have `InternalsVisibleTo`, but
+   making it internal breaks binary compatibility, so it waits for a decision and a release that
+   can carry one.
