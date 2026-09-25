@@ -33,6 +33,9 @@ together at every version.
   library loses `IsTrimmable` or turns `EnableTrimAnalyzer` off (`8e07ab7`). Build and CI only;
   nothing a package carries changes.
 
+- **The `nuget` topic is required only where `packages.push` names an id** (Templates `fb6961a`):
+  `scripts/repo-conventions.cs` is the template's current copy. CI only.
+
 ## Next
 
 1. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
