@@ -55,6 +55,14 @@ together at every version.
   project that never mentions `IsPackable`, `PackageMetadataTests.Every_project_states_IsPackable_explicitly`
   already failed and `Every_packable_project_is_classified` passed; now both fail. Tests only.
 
+- **AssemblyQuality 2026.3.928**, the pin alone: a type that will not load is named in `Skipped`
+  instead of crashing the scan. Measured with `Serilog.dll` removed from a copy of the test output:
+  at 2026.3.925 `BNAQ1001`, `BNAQ1002` and `BNAQ1004` threw `FileNotFoundException`; now the first
+  two fail naming what they could not examine. `BNAQ1004` still throws, because
+  `IncludingInternalTypes()` reads the namespace of `BucketedRollingFileSink`'s compiler-generated
+  `<>c`, whose declaring type does not load; reported to AssemblyQuality. A missing dependency
+  fails these tests either way. Tests only.
+
 ## Next
 
 1. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
