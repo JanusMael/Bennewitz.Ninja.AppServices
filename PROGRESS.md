@@ -65,20 +65,27 @@ together at every version.
   with the next Templates conventions sync, and `BNAQ1006` is a release-time check against published
   consumers. Tests only.
 
+- **`plans/`**, the family's numbered plans, and `00001`, an entry point every app template calls
+  (approved 2026-09-30), which answers step 1 of Bennewitz.Ninja.Templates' `00007`. Documents only.
+
 ## Next
 
-1. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
+1. **`plans/00001` steps 2–8**: the `Bennewitz.Ninja.AppServices.EntryPoint` package and its tests,
+   the two probes, the native AOT jobs as required checks, `AvaloniaDiagnostics.EntryPointOptions()`,
+   then a release of all five ids on the maintainer's go. Templates' `00007` steps 2 and 3 wait for
+   that release.
+2. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
    `AppServicesLayeringTests` (the class is `LayeringTests`); `MovedSourceSmokeTests` describes
    the layering guards as still to come; `ShellLauncherWindowsTerminalTests` gives a VSTest
    `TestCategory=` filter for traits named `Category`; `Parallelization.cs` says
    `SerilogAvaloniaSinkTests` changes static state, which it does not.
-2. **Guard that every project under `src/` has a row in `LayeringTests.Tiers`.** Today a new
+3. **Guard that every project under `src/` has a row in `LayeringTests.Tiers`.** Today a new
    project with no row is outside the tier checks and BNAQ1003, and nothing fails.
-3. **Headless isolation per assembly** is unverified and waits for evidence before
+4. **Headless isolation per assembly** is unverified and waits for evidence before
    `[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]` is considered.
-4. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
+5. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
    here is scheduled for them.
-5. **`DefaultShareService`'s public constructor names `System.Diagnostics.Process`:** its test seam
+6. **`DefaultShareService`'s public constructor names `System.Diagnostics.Process`:** its test seam
    `Func<ProcessStartInfo, Process?>?` is public API of `Bennewitz.Ninja.AppServices`, which a
    `BNAQ1002` over `System.Diagnostics` reports. The tests already have `InternalsVisibleTo`, but
    making it internal breaks binary compatibility, so it waits for a decision and a release that
