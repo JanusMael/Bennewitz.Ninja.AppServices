@@ -19,10 +19,7 @@
     <AssemblyProduct>AppServices</AssemblyProduct>
     <CopyrightHolder>Brian Bennewitz</CopyrightHolder>
     <CommitSha Condition="'$(CommitSha)' == ''">$(GITHUB_SHA)</CommitSha>
-    <!-- AutoVersioning records the released version as assembly metadata; it does not set it. The
-         package version comes from the release tag as /p:Version=, so this follows it and reads
-         1.0.0 on a local build, which is what a local build is. -->
-    <PublicVersion Condition="'$(PublicVersion)' == ''">$(Version)</PublicVersion>
+    <!-- PublicVersion is defaulted in Directory.Build.targets, where Version already has its value. -->
   </PropertyGroup>
 
   <!-- Package metadata shared by every packable project. Without a licence expression a package is
