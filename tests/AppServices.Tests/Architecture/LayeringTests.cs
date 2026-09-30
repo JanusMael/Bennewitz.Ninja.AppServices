@@ -54,7 +54,7 @@ public sealed class LayeringTests
 
         // The only tier allowed to see Avalonia.
         new("AppServices.AvaloniaUI",
-            ["AppServices.Abstractions", "AppServices", "AppServices.Logging"],
+            ["AppServices.Abstractions", "AppServices", "AppServices.Logging", "AppServices.EntryPoint"],
             ["CommunityToolkit"]),
 
         // Every app's Main, a native AOT web API's included: the framework and nothing else.

@@ -83,6 +83,13 @@ together at every version.
   against the native binary; CI's new required `aot-linux` and `aot-windows` jobs repeat both on
   every change. A new package; the other four are unchanged.
 
+- **`AvaloniaDiagnostics.EntryPointOptions()`**, `plans/00001` step 6: the options
+  `AppMain.RunDesktop` takes in an Avalonia app. A failure is logged as fatal, then shown in the
+  native fatal-error dialog, which a start-up failure now gets too; a task exception nobody observed
+  is logged as a warning; and `Log.CloseAndFlush` runs on every exit. The Avalonia package now
+  depends on `.EntryPoint`; `AvaloniaDiagnosticsEntryPointTests` saw both halves red when each was
+  broken on purpose.
+
 ## Drift from `plans/00001`
 
 - **Its "What exists" row on the root `Directory.Build.props` was wrong.** It repeated that file's
@@ -92,9 +99,9 @@ together at every version.
 
 ## Next
 
-1. **`plans/00001` steps 6–8**: `AvaloniaDiagnostics.EntryPointOptions()`, then a release of all
-   five ids on the maintainer's go, then telling the Templates session. Templates' `00007` steps 2
-   and 3 wait for that release.
+1. **`plans/00001` steps 7–8**: a release of all five ids on the maintainer's go, then telling the
+   Templates session the version, the API and the AOT measurement. Templates' `00007` steps 2 and 3
+   wait for that release.
 2. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
    `AppServicesLayeringTests` (the class is `LayeringTests`); `MovedSourceSmokeTests` describes
    the layering guards as still to come; `ShellLauncherWindowsTerminalTests` gives a VSTest

@@ -8,7 +8,7 @@ released.
 | `AppServices.Abstractions` | `Bennewitz.Ninja.AppServices.Abstractions` | nothing | `IShellLauncher`, `IShareService`, `IDialogService`, `IEnvironmentProvider`, `IPermissionPathPicker`, `ISaveChangesPrompt`, `LaunchResult`, `ShareOutcome`, `DiagnosticSink`, and `DialogMessage` under `Dialogs/` |
 | `AppServices` | `Bennewitz.Ninja.AppServices` | `AppServices.Abstractions` | `ShellLauncher`, `DefaultShareService`, `DefaultEnvironmentProvider`, `NativeErrorDialog` |
 | `AppServices.Logging` | `Bennewitz.Ninja.AppServices.Logging` | Serilog only | `BucketedRollingFileSink` |
-| `AppServices.AvaloniaUI` | `Bennewitz.Ninja.AppServices.Avalonia` | its sibling projects, Avalonia, Serilog | `AvaloniaDialogService`, `FatalErrorDialog`, `NonFatalNoticeDialog`, `AvaloniaDiagnostics` with `AvaloniaDiagnosticsOptions`, `SerilogAvaloniaSink`, `BindingValidationErrorLogger` |
+| `AppServices.AvaloniaUI` | `Bennewitz.Ninja.AppServices.Avalonia` | its sibling projects, Avalonia, Serilog | `AvaloniaDialogService`, `FatalErrorDialog`, `NonFatalNoticeDialog`, `AvaloniaDiagnostics` with `AvaloniaDiagnosticsOptions` and `EntryPointOptions`, `SerilogAvaloniaSink`, `BindingValidationErrorLogger` |
 | `AppServices.EntryPoint` | `Bennewitz.Ninja.AppServices.EntryPoint` | nothing | `AppMain` with `AppMainOptions`, and `UsageException` |
 
 ## Rules

@@ -18,6 +18,9 @@
          Kept rather than dropping the wrapper: T3 -> T0 is the natural direction, and removing a
          convenience the host already calls buys nothing. Recorded as drift. -->
     <ProjectReference Include="../AppServices/AppServices.csproj" />
+    <!-- AvaloniaDiagnostics.EntryPointOptions hands AppMain.RunDesktop an Avalonia app's dialog and
+         log (plans/00001, decision 9), so a package bump can fix that wiring in every app. -->
+    <ProjectReference Include="../AppServices.EntryPoint/AppServices.EntryPoint.csproj" />
   </ItemGroup>
 
   <ItemGroup>
