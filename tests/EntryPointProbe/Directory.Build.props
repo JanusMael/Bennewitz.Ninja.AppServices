@@ -1,0 +1,13 @@
+<Project>
+  <!-- ⛔ Not a test project. MSBuild applies only the CLOSEST Directory.Build.props, so this file
+       replaces tests/Directory.Build.props, which would make this an xunit test executable, and
+       imports the repository root's props itself: its target framework, nullable settings, warnings
+       as errors and AutoVersioning, whose PublicVersion is the version the probe prints. -->
+  <Import Project="$(MSBuildThisFileDirectory)../../Directory.Build.props" />
+
+  <PropertyGroup>
+    <!-- A probe is never packed. tests/Directory.Build.props says so for the test project; this
+         file has to say it again, because it replaces that one. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- One warning per call site rather than one per assembly, so an AOT or trim warning in
+         AppServices.EntryPoint names the member that raised it. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+  </PropertyGroup>
+
+  <!-- Native AOT is switched on by the publish, not here: CI's aot jobs run
+       `dotnet publish -r <rid> -p:PublishAot=true -warnaserror`. Left on in the project, it would
+       make the solution build and the test project's reference to this probe carry a publish mode
+       they never use. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AppServices.EntryPoint\AppServices.EntryPoint.csproj" />
+
+    <!-- ⛔ Measure the whole library, not only what this probe happens to call. The AOT compiler
+         analyses reachable code alone, and the method a native web API calls must be measured as
+         surely as the one a console probe calls. -->
+    <TrimmerRootAssembly Include="AppServices.EntryPoint" />
+  </ItemGroup>
+</Project>

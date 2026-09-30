@@ -18,15 +18,16 @@ implementations that need an operating system but no UI framework), `Bennewitz.N
 from Avalonia's logger into Serilog). The code moved here out of OpenForge2k, whose Avalonia
 applications are the consumers: they reference the Avalonia package, which brings its siblings
 through its project references. A test or a non-UI host references `.Abstractions` or
-`Bennewitz.Ninja.AppServices` alone. `README.md` is packed into every package and is the nuget.org
-description.
+`Bennewitz.Ninja.AppServices` alone. `Bennewitz.Ninja.AppServices.EntryPoint`, referencing nothing, is
+the entry point every app's `Main` calls, console, web and desktop alike (`plans/00001`).
+`README.md` is packed into every package and is the nuget.org description.
 
 ## Layout
 
 | Directory | What it holds |
 |---|---|
 | `src/` | The shipped projects and `src/Directory.Build.props`, which marks them trimmable |
-| `tests/` | `AppServices.Tests`: the ported suites, the headless dialog tests, and the architecture and packaging guards |
+| `tests/` | `AppServices.Tests`: the ported suites, the headless dialog tests, the entry-point tests, and the architecture and packaging guards. `EntryPointProbe` and `EntryPointWebProbe`: the apps the entry-point tests run |
 | `scripts/` | File-based apps: `assert-packages.cs` and `repo-conventions.cs` |
 | `docs/` | `publishing.md`, the release runbook |
 | `plans/` | Numbered plans, `NNNNN-slug.md`: a draft is edited in place, an approved one never again |
@@ -39,6 +40,10 @@ description.
 | Every packable project's id is in exactly one of `packages.push` and `packages.local` | A package nobody chose is published, permanently | `PackagingTests.Every_packable_project_is_classified`, `PackagingTests.No_id_is_both_published_and_private`; `scripts/assert-packages.cs`; the release step `Assert packed matches declared` |
 | The release pushes the ids `packages.push` names and never globs `*.nupkg` | A new packable project is published by the next tag | `.github/workflows/release.yml`, steps `Push to NuGet.org` and `Create GitHub Release`; `PackagingTests.The_release_workflow_globs_nothing_and_publishes_what_is_declared` |
 | `AppServices.Abstractions` references nothing but the framework | A test or non-UI host inherits a UI toolkit or a logger, and the split stops paying for itself | `LayeringTests.Abstractions_compiles_against_nothing_but_the_framework`, `LayeringTests.No_project_reaches_outside_its_tier` |
+| `AppServices.EntryPoint` references nothing but the framework | A native AOT app that takes it for its `Main` carries whatever it references | `LayeringTests.EntryPoint_compiles_against_nothing_but_the_framework`, `LayeringTests.No_project_reaches_outside_its_tier` |
+| `AppServices.EntryPoint` is native AOT compatible, measured | A native AOT app, such as the family's `bbapi`, fails to publish once it calls `AppMain` | `IsAotCompatible` in its csproj; CI's `aot-linux` and `aot-windows` publish `tests/EntryPointProbe` with native AOT and run `EntryPointProbeTests` against the binary |
+| An entry point exits 0 on success, 1 when an exception escapes, 2 on a console usage error and 130 after Ctrl+C, with the fatal report on stderr before any callback | A calling script cannot tell a crash from a bad invocation or an interruption, and a failing logger takes the report with it | `AppMainTests`, `EntryPointProbeTests` |
+| `HostAbortedException` passes through `AppMain` unreported | A design-time tool's normal stop is reported as a crash, and shows a desktop app's fatal dialog | `AppMainTests.A_HostAbortedException_passes_through_unreported`, `EntryPointWebProbeTests.A_stop_on_HostBuilt_passes_its_HostAbortedException_back_with_nothing_on_stderr` |
 | Each project reaches only what its tier allows: only `AppServices.AvaloniaUI` sees Avalonia, and `AppServices.Logging` sees Serilog and nothing else | A lower package drags a UI framework into every consumer | `LayeringTests.Tiers`; `LayeringTests.No_project_declares_a_package_its_tier_forbids`; `AssemblyQualityTests.BNAQ1003_no_assembly_references_what_its_tier_forbids` |
 | Nothing here references another family (`LayeringTests.ForeignFamilies`) | The families can no longer be versioned or abandoned independently | `LayeringTests.Nothing_here_reaches_another_family`, `LayeringTests.No_compiled_assembly_reaches_another_family` |
 | Every shipped assembly passes the family's AssemblyQuality rules `BNAQ1001`–`BNAQ1004` | A package ships a violation nothing ran | `AssemblyQualityTests`, one test per rule and `Every_shipped_assembly_is_in_the_scan` |
@@ -63,11 +68,16 @@ dotnet test --solution AppServices.slnx --no-build -c Release
 dotnet pack AppServices.slnx -c Release --nologo --output ./packages/Release
 dotnet run scripts/assert-packages.cs -- ./packages/Release
 dotnet run --file scripts/repo-conventions.cs -- check
+dotnet publish tests/EntryPointProbe/EntryPointProbe.csproj -c Release -r <rid> -p:PublishAot=true -warnaserror
 ```
 
 - Tests run on Microsoft.Testing.Platform (`global.json`), so `dotnet test` takes `--solution` and
   rejects VSTest-only switches such as `--nologo`. `--no-build` needs the Release build first.
 - Write `-p:` rather than `/p:`: Git Bash on Windows rewrites a leading-slash argument into a path.
+- The native AOT publish links with the platform's C toolchain: clang and zlib on Linux, the Visual
+  Studio C++ tools on Windows. Visual Studio 18 Build Tools' `vcvarsall.bat` calls `vswhere.exe` by
+  name, so put `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` on PATH first, or the link
+  fails with its "is not recognized" message where the linker's path should be.
 
 ## Checklists
 

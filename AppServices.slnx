@@ -4,8 +4,11 @@
     <Project Path="src/AppServices/AppServices.csproj" />
     <Project Path="src/AppServices.Logging/AppServices.Logging.csproj" />
     <Project Path="src/AppServices.AvaloniaUI/AppServices.AvaloniaUI.csproj" />
+    <Project Path="src/AppServices.EntryPoint/AppServices.EntryPoint.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AppServices.Tests/AppServices.Tests.csproj" />
+    <Project Path="tests/EntryPointProbe/EntryPointProbe.csproj" />
+    <Project Path="tests/EntryPointWebProbe/EntryPointWebProbe.csproj" />
   </Folder>
 </Solution>

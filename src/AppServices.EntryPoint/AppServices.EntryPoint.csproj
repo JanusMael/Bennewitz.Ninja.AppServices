@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <IsPackable>true</IsPackable>
+    <PackageId>Bennewitz.Ninja.AppServices.EntryPoint</PackageId>
+    <AssemblyName>AppServices.EntryPoint</AssemblyName>
+    <Description>One entry point for console, web and desktop apps: an unhandled exception is reported on stderr and exits 1, a usage error exits 2, Ctrl+C exits 130, --version prints the release version, and the app's log is flushed on every exit. References nothing beyond the framework, and is native AOT compatible.</Description>
+    <PackageTags>entry-point;main;exit-codes;native-aot;app-services</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- ⛔ The ONE shipped assembly that claims IsAotCompatible (plans/00001, decision 2). It switches
+         on the AOT and single-file analysers beside the trim analyser src/Directory.Build.props
+         already runs, so an AOT break fails this repository's build. The claim is measured, not
+         assumed: CI's aot-linux and aot-windows jobs publish tests/EntryPointProbe with native AOT,
+         this assembly rooted whole, and run the binary. The other four packages keep the flag off
+         because nothing measures theirs. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- ⛔ THIS PROJECT HAS NO REFERENCES, AND THAT IS THE POINT. A native AOT web API takes it for
+       its Main, so anything referenced here is carried into that build. The app's own logger is
+       flushed through a callback the app passes, never referenced here. LayeringTests fails the
+       build if a reference appears. -->
+</Project>

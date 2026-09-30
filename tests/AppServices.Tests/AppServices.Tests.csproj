@@ -5,6 +5,16 @@
     <ProjectReference Include="..\..\src\AppServices\AppServices.csproj" />
     <ProjectReference Include="..\..\src\AppServices.Logging\AppServices.Logging.csproj" />
     <ProjectReference Include="..\..\src\AppServices.AvaloniaUI\AppServices.AvaloniaUI.csproj" />
+    <ProjectReference Include="..\..\src\AppServices.EntryPoint\AppServices.EntryPoint.csproj" />
+  </ItemGroup>
+
+  <!-- The entry-point probes. The web probe is referenced for its Program, which
+       WebApplicationFactory<Program> starts. The console probe is only built first and run as a child
+       process: referencing its assembly as well would put a second Program beside the web probe's. -->
+  <ItemGroup>
+    <ProjectReference Include="..\EntryPointWebProbe\EntryPointWebProbe.csproj" />
+    <ProjectReference Include="..\EntryPointProbe\EntryPointProbe.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
 
   <!-- The dialog accessibility tests build real windows on a headless Avalonia platform. Each

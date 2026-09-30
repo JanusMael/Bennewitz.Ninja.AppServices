@@ -80,3 +80,58 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: dotnet run --file scripts/repo-conventions.cs -- check
+
+  # ⛔ The measurement behind AppServices.EntryPoint's IsAotCompatible (plans/00001, decisions 2 and
+  # 11): tests/EntryPointProbe published with native AOT, the library rooted whole and warnings as
+  # errors, then the probe's contract run against the native binary. One job per platform, since a
+  # native binary is built for its own. Both are required checks in .github/repository.json, so a
+  # change that breaks the claim cannot merge.
+  aot-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Native AOT links with the platform's C toolchain.
+      - name: Install the native toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Build
+        run: dotnet build AppServices.slnx -c Release --nologo -warnaserror
+
+      - name: Publish the entry-point probe with native AOT
+        run: dotnet publish tests/EntryPointProbe/EntryPointProbe.csproj -c Release -r linux-x64 -p:PublishAot=true -warnaserror --nologo -o artifacts/aot
+
+      - name: Run the probe's contract against the native binary
+        env:
+          ENTRYPOINT_PROBE_NATIVE: ${{ github.workspace }}/artifacts/aot/EntryPointProbe
+        run: dotnet test --solution AppServices.slnx --no-build -c Release --filter-class AppServices.Tests.EntryPoint.EntryPointProbeTests
+
+  aot-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build AppServices.slnx -c Release --nologo -warnaserror
+
+      - name: Publish the entry-point probe with native AOT
+        run: dotnet publish tests/EntryPointProbe/EntryPointProbe.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror --nologo -o artifacts/aot
+
+      - name: Run the probe's contract against the native binary
+        env:
+          ENTRYPOINT_PROBE_NATIVE: ${{ github.workspace }}/artifacts/aot/EntryPointProbe.exe
+        run: dotnet test --solution AppServices.slnx --no-build -c Release --filter-class AppServices.Tests.EntryPoint.EntryPointProbeTests

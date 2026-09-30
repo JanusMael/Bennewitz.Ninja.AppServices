@@ -1,5 +1,5 @@
 {
-  "description": "Application services for desktop apps — shell launching, environment probing, sharing, dialogs and logging — behind contracts a test can fake without a UI toolkit. Ships as Bennewitz.Ninja.AppServices, .Abstractions, .Logging and .Avalonia.",
+  "description": "Application services for desktop apps — shell launching, environment probing, sharing, dialogs and logging — behind contracts a test can fake without a UI toolkit. Ships as Bennewitz.Ninja.AppServices, .Abstractions, .Logging, .Avalonia and .EntryPoint.",
   "homepage": "",
   "topics": [
     "csharp",
@@ -13,7 +13,9 @@
   "requiredChecks": [
     "build",
     "pack",
-    "conventions"
+    "conventions",
+    "aot-linux",
+    "aot-windows"
   ],
   "content": [],
   "undocumented": {},
