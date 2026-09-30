@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      The version AutoVersioning records as [AssemblyMetadata("PublicVersion")]: the release's, which
+      the tag passes in as -p:Version=, and 1.0.0 on a local build.
+
+      ⛔ Here, not in Directory.Build.props. The props file is evaluated before the SDK gives Version
+      its 1.0.0 default, so a default taken there is empty on every local build, and anything reading
+      the version back, an About box or /version, shows nothing. Measured: "" from the props file,
+      "1.0.0" from this one, and -p:Version= wins in both.
+    -->
+    <PublicVersion Condition="'$(PublicVersion)' == ''">$(Version)</PublicVersion>
+  </PropertyGroup>
+</Project>

@@ -68,6 +68,18 @@ together at every version.
 - **`plans/`**, the family's numbered plans, and `00001`, an entry point every app template calls
   (approved 2026-09-30), which answers step 1 of Bennewitz.Ninja.Templates' `00007`. Documents only.
 
+- **`PublicVersion` defaults in `Directory.Build.targets`**, the `bbpkg` template's file verbatim,
+  where `Version` already has its value. Taken in `Directory.Build.props`, the default was empty on
+  every build but a release's, so nothing built here carried `[AssemblyMetadata("PublicVersion")]`.
+  Build only: a release's packages are unchanged, since its `-p:Version=` wins either way.
+
+## Drift from `plans/00001`
+
+- **Its "What exists" row on the root `Directory.Build.props` was wrong.** It repeated that file's
+  comment, "1.0.0 on a local build", but the default was taken before the SDK sets `Version`, so
+  `PublicVersion` was empty and no assembly carried it. Found by the entry point's first `--version`
+  test, and fixed by adopting the template's `Directory.Build.targets`.
+
 ## Next
 
 1. **`plans/00001` steps 2–8**: the `Bennewitz.Ninja.AppServices.EntryPoint` package and its tests,
