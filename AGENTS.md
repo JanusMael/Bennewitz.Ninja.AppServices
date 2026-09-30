@@ -29,6 +29,7 @@ description.
 | `tests/` | `AppServices.Tests`: the ported suites, the headless dialog tests, and the architecture and packaging guards |
 | `scripts/` | File-based apps: `assert-packages.cs` and `repo-conventions.cs` |
 | `docs/` | `publishing.md`, the release runbook |
+| `plans/` | Numbered plans, `NNNNN-slug.md`: a draft is edited in place, an approved one never again |
 | `.github/` | The workflows, `repository.json`, and the pointer for tools that read `.github/` |
 
 ## Invariants
