@@ -1,6 +1,7 @@
 using Bennewitz.Ninja.AppServices.AvaloniaUI.Binding;
 using Bennewitz.Ninja.AppServices.AvaloniaUI.Dialogs;
 using Bennewitz.Ninja.AppServices.Dialogs;
+using Bennewitz.Ninja.AppServices.EntryPoint;
 using Bennewitz.Ninja.AppServices.Logging;
 using Serilog;
 using AvaloniaLogger = Avalonia.Logging.Logger;
@@ -291,4 +292,33 @@ public static class AvaloniaDiagnostics
             : $"{AppName} — Critical Error";
         NativeErrorDialog.ShowFatalError(title, message);
     }
+
+    /// <summary>
+    /// The options <see cref="AppMain.RunDesktop"/> takes in an Avalonia app: a failure is logged as
+    /// fatal and shown in the native fatal-error dialog, a task exception nobody observed is logged as
+    /// a warning, and the log is closed and flushed on every exit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⭐ <b>The wiring lives here so that a package bump fixes it in every app.</b> Written into each
+    /// app's <c>Program.cs</c> instead, it would be copied from the template once and never updated.
+    /// </para>
+    /// <para>
+    /// ⚠ The fatal event is logged before the dialog opens, since the dialog blocks until it is
+    /// dismissed and the log is the record that survives. Before <see cref="ConfigureLogging"/> has run,
+    /// <see cref="Log.Logger"/> discards the event, and the dialog and the entry point's own report on
+    /// stderr are what remain.
+    /// </para>
+    /// </remarks>
+    /// <returns>New options on every call.</returns>
+    public static AppMainOptions EntryPointOptions() => new()
+    {
+        OnFatal = exception =>
+        {
+            Log.Fatal(exception, "{AppName} stopped on an unhandled exception", AppName ?? "The application");
+            ShowNativeFatalError(exception.ToString());
+        },
+        OnUnobservedTaskException = exception => Log.Warning(exception, "A task exception nobody observed"),
+        FlushLog = Log.CloseAndFlush,
+    };
 }

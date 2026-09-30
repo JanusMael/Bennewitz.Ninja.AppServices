@@ -10,12 +10,12 @@ completing the same way whether or not anything did.
 | `Bennewitz.Ninja.AppServices.Abstractions` | The contracts and the dialog vocabulary: shell launching, environment, sharing, dialogs and pickers. Framework-free. |
 | `Bennewitz.Ninja.AppServices` | Default implementations: shell launching, environment probing, sharing and a native error dialog. Needs an operating system, not a UI framework, so it works from a CLI, a service or a test. |
 | `Bennewitz.Ninja.AppServices.Logging` | Serilog sinks for desktop applications, starting with a bucketed rolling file sink that keeps a bounded number of files per bucket. |
-| `Bennewitz.Ninja.AppServices.Avalonia` | Avalonia implementations — dialog service, file pickers, fatal and non-fatal dialogs — and the bridge that routes Avalonia's logger and its binding errors into Serilog. |
+| `Bennewitz.Ninja.AppServices.Avalonia` | Avalonia implementations — dialog service, file pickers, fatal and non-fatal dialogs — and the bridge that routes Avalonia's logger and its binding errors into Serilog. Its `EntryPointOptions` gives an Avalonia app's entry point the fatal dialog and the log. |
 | `Bennewitz.Ninja.AppServices.EntryPoint` | One entry point for console, web and desktop apps: exit codes a script can read, a fatal report on stderr, Ctrl+C, `--version`, and the app's log flushed on every exit. References nothing but the framework, and is native AOT compatible. |
 
 ## Install
 
-In an Avalonia application, one package brings the other three with it:
+In an Avalonia application, one package brings the others with it:
 
 ```bash
 dotnet add package Bennewitz.Ninja.AppServices.Avalonia
@@ -39,8 +39,8 @@ return await AppMain.RunConsoleAsync(typeof(Program).Assembly, args, RunAsync, n
 // A web app: its arguments are configuration, and its host owns shutdown
 return await AppMain.RunHostAsync(typeof(Program).Assembly, args, RunAsync);
 
-// A desktop app with no console
-return AppMain.RunDesktop(typeof(Program).Assembly, args, Run, options);
+// An Avalonia desktop app, with its fatal dialog and its log
+return AppMain.RunDesktop(typeof(Program).Assembly, args, Run, AvaloniaDiagnostics.EntryPointOptions());
 ```
 
 | Exit code | When |
