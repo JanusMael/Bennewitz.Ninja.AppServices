@@ -1,7 +1,9 @@
 # AGENTS.md — `tests/`
 
 The test project `AppServices.Tests`, referencing every shipped project. `tests/Directory.Build.props`
-makes it an xUnit v3 test executable that is never packed.
+makes it an xUnit v3 test executable that is never packed. Beside it, `EntryPointProbe` and
+`EntryPointWebProbe` are apps, not tests: each has a `Directory.Build.props` of its own, which
+imports the root one in place of this directory's and sets `IsPackable` to false.
 
 | Folder | Classes | What they cover |
 |---|---|---|
@@ -10,6 +12,7 @@ makes it an xUnit v3 test executable that is never packed.
 | `Shell/`, `Share/`, root | `ShellLauncherWindowsTerminalTests`, `DefaultShareServiceTests`, `LaunchResultTests`, `MovedSourceSmokeTests` | The launcher, the share service's reported `ShareOutcome`, `LaunchResult`, and the environment provider and dialog vocabulary |
 | `Logging/`, `AvaloniaUI/` | `BucketedRollingFileSinkTests`, `SerilogAvaloniaSinkTests`, `AvaloniaDiagnosticsHookTests` | Bucket arithmetic and retention, the Avalonia-to-Serilog level mapping, and the `ConfigureLogger` and `EventListener` hooks |
 | `Dialogs/`, `Headless/` | `DialogAccessibilityTests`, `NativeErrorDialogTests`, `HeadlessSessionTests`, `HeadlessTestApp` | Every interactive control in the C#-built dialogs has an automation name, built on a headless Avalonia platform; the native dialog never throws |
+| `EntryPoint/` | `AppMainTests`, `EntryPointProbeTests`, `EntryPointWebProbeTests` | `AppMain` in process: every exit code, both streams, `--version` and the hooks. The console probe as a child process, and against its native AOT binary when `ENTRYPOINT_PROBE_NATIVE` names one. The web probe under `WebApplicationFactory`, and stopped on `HostBuilt` as a design-time tool stops an app |
 
 ## Rules
 
@@ -27,6 +30,9 @@ makes it an xUnit v3 test executable that is never packed.
 | The vacuity guards stay | Every other assertion iterates a list, and an empty list passes all of them; a rule that could not load part of what it was given reports clean on the rest | `LayeringTests.Every_tier_named_here_actually_exists`, `PackageMetadataTests.There_is_something_to_check`, `AssemblyQualityTests.Every_shipped_assembly_is_in_the_scan`, each rule's `Inspected > 0` and empty `Skipped` |
 | `DialogAccessibilityTests` pins the number of interactive controls each dialog has | A new control must bump it; a lower count means the walker lost something | `DialogAccessibilityTests` remarks |
 | The project stays named `AppServices.Tests` | Each `src` project's `AssemblyInfo.cs` grants internals to that name; a rename sends the grant nowhere | `InternalsVisibleTo` in each `AssemblyInfo.cs` |
+| The console probe is built and run, never referenced for its assembly | Its `Program` would sit beside the web probe's, which `WebApplicationFactory<Program>` needs | `ReferenceOutputAssembly="false"` in `AppServices.Tests.csproj` |
+| `WebApplicationFactory` is not the proof that `HostAbortedException` passes through | It resolves the host with `stopApplication: false` and never throws it; only a stop on `HostBuilt`, as a design-time tool makes, does | `EntryPointWebProbeTests` remarks |
+| A test that needs the native probe skips, visibly, without `ENTRYPOINT_PROBE_NATIVE` | The native binary exists only where CI's aot jobs publish it | `EntryPointProbeTests` |
 
 ⛔ **Never weaken an architecture or packaging test to make it pass.** When one fails, the project,
 the package list or the workflow is wrong, not the test.

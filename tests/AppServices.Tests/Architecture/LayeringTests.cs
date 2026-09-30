@@ -56,6 +56,9 @@ public sealed class LayeringTests
         new("AppServices.AvaloniaUI",
             ["AppServices.Abstractions", "AppServices", "AppServices.Logging"],
             ["CommunityToolkit"]),
+
+        // Every app's Main, a native AOT web API's included: the framework and nothing else.
+        new("AppServices.EntryPoint", [], ["Avalonia", "Serilog", "CommunityToolkit", "Microsoft.Extensions"]),
     ];
 
     /// <summary>
@@ -219,12 +222,37 @@ public sealed class LayeringTests
     {
         // The strongest statement this family makes, asserted against the compiled output rather
         // than the project file, so a props-injected reference cannot slip past it.
+        string[] nonFramework = NonFrameworkReferences("AppServices.Abstractions");
+
+        Assert.True(
+            nonFramework.Length == 0,
+            "AppServices.Abstractions has grown a reference:\n  " + string.Join("\n  ", nonFramework)
+            + "\n\nIt is the package a test or a non-UI host consumes. Reaching anything is the "
+            + "change that quietly undoes the split.");
+    }
+
+    [Fact]
+    public void EntryPoint_compiles_against_nothing_but_the_framework()
+    {
+        // A native AOT web API takes this package for its Main, so whatever it references is carried
+        // into that build (plans/00001, decision 1).
+        string[] nonFramework = NonFrameworkReferences("AppServices.EntryPoint");
+
+        Assert.True(
+            nonFramework.Length == 0,
+            "AppServices.EntryPoint has grown a reference:\n  " + string.Join("\n  ", nonFramework)
+            + "\n\nEvery app's Main takes this package, a native AOT one included. The app's logger "
+            + "is flushed through a callback it passes, never referenced here.");
+    }
+
+    private static string[] NonFrameworkReferences(string assemblyName)
+    {
         string output = Path.GetDirectoryName(typeof(LayeringTests).Assembly.Location)!;
-        string path = Path.Combine(output, "AppServices.Abstractions.dll");
+        string path = Path.Combine(output, assemblyName + ".dll");
 
-        Assert.True(File.Exists(path), $"AppServices.Abstractions.dll is not in {output}.");
+        Assert.True(File.Exists(path), $"{assemblyName}.dll is not in {output}.");
 
-        string[] nonFramework =
+        return
         [
             .. Assembly.LoadFrom(path)
                 .GetReferencedAssemblies()
@@ -233,12 +261,6 @@ public sealed class LayeringTests
                             && !n.Equals("netstandard", StringComparison.Ordinal)
                             && !n.Equals("mscorlib", StringComparison.Ordinal)),
         ];
-
-        Assert.True(
-            nonFramework.Length == 0,
-            "AppServices.Abstractions has grown a reference:\n  " + string.Join("\n  ", nonFramework)
-            + "\n\nIt is the package a test or a non-UI host consumes. Reaching anything is the "
-            + "change that quietly undoes the split.");
     }
 
     // ── reading the project files ────────────────────────────────────────────

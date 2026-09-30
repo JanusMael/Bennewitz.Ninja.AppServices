@@ -73,6 +73,16 @@ together at every version.
   every build but a release's, so nothing built here carried `[AssemblyMetadata("PublicVersion")]`.
   Build only: a release's packages are unchanged, since its `-p:Version=` wins either way.
 
+- **`Bennewitz.Ninja.AppServices.EntryPoint`**, `plans/00001` steps 2–5: `AppMain`'s
+  `RunConsoleAsync`, `RunHostAsync` and `RunDesktop`, with `AppMainOptions` and `UsageException`.
+  It references nothing, and is the one assembly here that claims `IsAotCompatible`. `AppMainTests`
+  covers every exit code and stream in process, `EntryPointProbeTests` runs `tests/EntryPointProbe`
+  as a child process, and `EntryPointWebProbeTests` starts `tests/EntryPointWebProbe` under
+  `WebApplicationFactory` and stops it on `HostBuilt`; each rule was seen red when broken on
+  purpose. The native AOT publish is warning-free on win-x64, and the probe's contract passes
+  against the native binary; CI's new required `aot-linux` and `aot-windows` jobs repeat both on
+  every change. A new package; the other four are unchanged.
+
 ## Drift from `plans/00001`
 
 - **Its "What exists" row on the root `Directory.Build.props` was wrong.** It repeated that file's
@@ -82,10 +92,9 @@ together at every version.
 
 ## Next
 
-1. **`plans/00001` steps 2–8**: the `Bennewitz.Ninja.AppServices.EntryPoint` package and its tests,
-   the two probes, the native AOT jobs as required checks, `AvaloniaDiagnostics.EntryPointOptions()`,
-   then a release of all five ids on the maintainer's go. Templates' `00007` steps 2 and 3 wait for
-   that release.
+1. **`plans/00001` steps 6–8**: `AvaloniaDiagnostics.EntryPointOptions()`, then a release of all
+   five ids on the maintainer's go, then telling the Templates session. Templates' `00007` steps 2
+   and 3 wait for that release.
 2. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
    `AppServicesLayeringTests` (the class is `LayeringTests`); `MovedSourceSmokeTests` describes
    the layering guards as still to come; `ShellLauncherWindowsTerminalTests` gives a VSTest
