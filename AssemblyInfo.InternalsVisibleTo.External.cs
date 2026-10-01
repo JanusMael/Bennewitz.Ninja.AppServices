@@ -12,3 +12,7 @@
 // that repository. See docs/repository-conventions.md in Bennewitz.Ninja.Templates.
 //
 // [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AppServices")]
+
+// ClaudeForge's tests (JanusMael/ClaudeForge) build DefaultShareService through its internal Process
+// seam, at ten call sites in ShareOutcomeTests and ShareServiceTests.
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ClaudeForge.Tests")]

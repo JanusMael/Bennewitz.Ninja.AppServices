@@ -60,16 +60,17 @@ public sealed class AssemblyQualityTests
     /// <remarks>
     /// ⚠ <b>The rule's default set alone inspects nothing here.</b> It names JSON DOM namespaces, and
     /// no shipped assembly references a JSON library, so on its own the rule reports that it had
-    /// nothing to check (measured on 2026.3.925). The two namespaces added here are ones every
-    /// shipped assembly really reaches: <c>AppServices</c> references <c>Microsoft.Win32.Registry</c>,
-    /// and <c>System.Runtime</c> brings the rest to all four. A registry key, safe handle or
+    /// nothing to check (measured on 2026.3.925). The namespaces added here are ones every shipped
+    /// assembly really reaches: <c>AppServices</c> references <c>Microsoft.Win32.Registry</c>, and
+    /// <c>System.Runtime</c> brings the rest to every one of them. A registry key, safe handle or
     /// marshalling type in a public signature makes a contract Windows-shaped and binds every
-    /// consumer to platform plumbing it never chose.
+    /// consumer to platform plumbing it never chose; a <c>Process</c> or <c>ProcessStartInfo</c>
+    /// there turns a test seam into API every consumer can call.
     /// </remarks>
     [Fact]
     public void BNAQ1002_no_platform_or_leak_prone_type_appears_in_the_public_surface()
     {
-        SurfaceLeakRule rule = new(["Microsoft.Win32", "System.Runtime.InteropServices"]);
+        SurfaceLeakRule rule = new(["Microsoft.Win32", "System.Runtime.InteropServices", "System.Diagnostics"]);
         AssemblyRuleResult result = rule.Analyze(AssemblyScanContext.Of(Shipped));
 
         Assert.Empty(result.Findings);

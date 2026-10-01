@@ -103,6 +103,14 @@ together at every version.
   The packages now carry grants to their siblings, the probes and the tests; nothing else a package
   carries changes.
 
+- **`DefaultShareService`'s `Process` seam is internal** (breaking): the class has one public
+  constructor, which takes nothing, and the `Func<ProcessStartInfo, Process?>` test seam is
+  internal. This repository's tests reach it through the generated grants, and ClaudeForge's tests,
+  which build the service through the seam at ten call sites, through a grant to `ClaudeForge.Tests`
+  in the External file; ClaudeForge's app writes `new DefaultShareService()` and compiles unchanged.
+  `BNAQ1002` now covers `System.Diagnostics` too, and finds nothing else. An assembly built against
+  `2026.3.924` that calls the old constructor must be rebuilt, as the README's upgrading section says.
+
 ## Drift from `plans/00001`
 
 - **Its "What exists" row on the root `Directory.Build.props` was wrong.** It repeated that file's
@@ -127,7 +135,7 @@ together at every version.
 1. **`plans/00001` steps 7–8**: a release of all five ids, then telling the Templates session the
    version, the API and the AOT measurement. Templates' `00007` steps 2 and 3 wait for that release.
    **Go given 2026-10-01** (maintainer): once #8, the friend grants and the `DefaultShareService`
-   change in item 6 are merged with `main` green.
+   change are merged with `main` green.
 2. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
    `AppServicesLayeringTests` (the class is `LayeringTests`); `MovedSourceSmokeTests` describes
    the layering guards as still to come; `ShellLauncherWindowsTerminalTests` gives a VSTest
@@ -139,11 +147,3 @@ together at every version.
    `[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]` is considered.
 5. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
    here is scheduled for them.
-6. **`DefaultShareService`'s public constructor names `System.Diagnostics.Process`:** its test seam
-   `Func<ProcessStartInfo, Process?>?` is public API of `Bennewitz.Ninja.AppServices`, which a
-   `BNAQ1002` over `System.Diagnostics` reports. Making it internal breaks binary compatibility, and
-   ClaudeForge's tests build the service through the seam at ten call sites (`ShareOutcomeTests`,
-   `ShareServiceTests`); only its app writes `new DefaultShareService()`. **Decided 2026-10-01**
-   (maintainer): it goes internal in the release that carries `.EntryPoint`, with
-   `System.Diagnostics` added to `BNAQ1002`'s set and `ClaudeForge.Tests` granted
-   `InternalsVisibleTo` in the External file.

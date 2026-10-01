@@ -59,6 +59,13 @@ for one, belongs in `RunHostAsync`. An exception on another thread is reported a
 the process then ends with the runtime's own exit code. A `HostAbortedException`, which design-time
 tools such as `dotnet ef` throw to stop an app, passes through untouched.
 
+## Upgrading from 2026.3.924
+
+- `DefaultShareService` has one public constructor, which takes nothing. The
+  `Func<ProcessStartInfo, Process?>` it used to take as an optional test seam is internal now, so
+  source that writes `new DefaultShareService()` compiles unchanged, but an assembly built against
+  `2026.3.924` must be rebuilt: the constructor it calls is no longer public.
+
 ## Upgrading from 2026.3.923
 
 - `Bennewitz.Ninja.AppServices.Avalonia` keeps its id, but the assembly inside it is now
