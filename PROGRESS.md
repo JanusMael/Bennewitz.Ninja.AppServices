@@ -119,8 +119,8 @@ together at every version.
 
 1. **`plans/00001` steps 7–8**: a release of all five ids, then telling the Templates session the
    version, the API and the AOT measurement. Templates' `00007` steps 2 and 3 wait for that release.
-   **Go given 2026-10-01** (maintainer): once #8 and the `DefaultShareService` change in item 6 are
-   merged with `main` green.
+   **Go given 2026-10-01** (maintainer): once #8, item 7 and the `DefaultShareService` change in
+   item 6 are merged with `main` green.
 2. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
    `AppServicesLayeringTests` (the class is `LayeringTests`); `MovedSourceSmokeTests` describes
    the layering guards as still to come; `ShellLauncherWindowsTerminalTests` gives a VSTest
@@ -134,9 +134,15 @@ together at every version.
    here is scheduled for them.
 6. **`DefaultShareService`'s public constructor names `System.Diagnostics.Process`:** its test seam
    `Func<ProcessStartInfo, Process?>?` is public API of `Bennewitz.Ninja.AppServices`, which a
-   `BNAQ1002` over `System.Diagnostics` reports. The tests already have `InternalsVisibleTo`, but
-   making it internal breaks binary compatibility. **Decided 2026-10-01** (maintainer): it goes
-   internal in the release that carries `.EntryPoint`, in a pull request of its own after #8: a
-   public parameterless constructor and an internal seam, with `System.Diagnostics` added to
-   `BNAQ1002`'s set. Every known caller, OpenForge2k's and ClaudeForge's apps and tests, writes
-   `new DefaultShareService()`.
+   `BNAQ1002` over `System.Diagnostics` reports. Making it internal breaks binary compatibility, and
+   ClaudeForge's tests build the service through the seam at ten call sites (`ShareOutcomeTests`,
+   `ShareServiceTests`); only its app writes `new DefaultShareService()`. **Decided 2026-10-01**
+   (maintainer): it goes internal in the release that carries `.EntryPoint`, with
+   `System.Diagnostics` added to `BNAQ1002`'s set and `ClaudeForge.Tests` granted
+   `InternalsVisibleTo` in the External file item 7 brings.
+7. **Adopt Templates' `plans/00006`, solution-wide friend grants**, before item 6 and the release
+   (decided 2026-10-01, maintainer): the synced `scripts/repo-conventions.cs`, the generated
+   `AssemblyInfo.InternalsVisibleTo.cs`, a hand-written `AssemblyInfo.InternalsVisibleTo.External.cs`,
+   no per-project grants, and `BNAQ1005` over the solution's assemblies and the External file's
+   names. Grants to any of the maintainer's other repositories are allowed, so `src/AGENTS.md`'s
+   "tests only" rule goes with it.
