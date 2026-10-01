@@ -33,6 +33,7 @@ imports the root one in place of this directory's and sets `IsPackable` to false
 | The console probe is built and run, never referenced for its assembly | Its `Program` would sit beside the web probe's, which `WebApplicationFactory<Program>` needs | `ReferenceOutputAssembly="false"` in `AppServices.Tests.csproj` |
 | `WebApplicationFactory` is not the proof that `HostAbortedException` passes through | It resolves the host with `stopApplication: false` and never throws it; only a stop on `HostBuilt`, as a design-time tool makes, does | `EntryPointWebProbeTests` remarks |
 | A test that needs the native probe skips, visibly, without `ENTRYPOINT_PROBE_NATIVE` | The native binary exists only where CI's aot jobs publish it | `EntryPointProbeTests` |
+| A signal test asserts the probe's `probe: flushed` marker, never its exit code alone | .NET reports a child killed by a signal as 128 plus the signal's number, so a probe that SIGINT killed outright reads 130, exactly as a handled Ctrl+C does | `EntryPointProbeTests` remarks |
 
 ⛔ **Never weaken an architecture or packaging test to make it pass.** When one fails, the project,
 the package list or the workflow is wrong, not the test.
