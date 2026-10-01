@@ -81,7 +81,9 @@ together at every version.
   `WebApplicationFactory` and stops it on `HostBuilt`; each rule was seen red when broken on
   purpose. The native AOT publish is warning-free on win-x64, and the probe's contract passes
   against the native binary; CI's new required `aot-linux` and `aot-windows` jobs repeat both on
-  every change. A new package; the other four are unchanged.
+  every change. The probe's SIGINT test asserts its flush marker, not the exit code alone, since
+  .NET reports a child killed by a signal as 128 plus its number. A new package; the other four are
+  unchanged.
 
 - **`AvaloniaDiagnostics.EntryPointOptions()`**, `plans/00001` step 6: the options
   `AppMain.RunDesktop` takes in an Avalonia app. A failure is logged as fatal, then shown in the

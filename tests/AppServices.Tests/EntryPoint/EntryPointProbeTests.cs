@@ -18,6 +18,11 @@ namespace AppServices.Tests.EntryPoint;
 /// ⚠ SIGINT is sent on Linux and macOS only. A console Ctrl+C cannot be sent to a child process
 /// reliably on Windows, so there the 130 exit is covered in process, by <see cref="AppMainTests"/>.
 /// </para>
+/// <para>
+/// ⛔ A signal test asserts the probe's flush marker, never the exit code alone. .NET reports a child
+/// killed by a signal as 128 plus the signal's number, so a probe that SIGINT killed outright reads 130,
+/// exactly as a handled Ctrl+C does.
+/// </para>
 /// </remarks>
 public sealed class EntryPointProbeTests
 {
@@ -131,16 +136,13 @@ public sealed class EntryPointProbeTests
 
         // The probe prints this once its work is waiting on the token.
         Assert.Equal("waiting", await process.StandardOutput.ReadLineAsync(TestContext.Current.CancellationToken));
-
-        using (Process kill = Process.Start("kill", ["-INT", process.Id.ToString(CultureInfo.InvariantCulture)])
-            ?? throw new InvalidOperationException("kill did not start."))
-        {
-            await kill.WaitForExitAsync(TestContext.Current.CancellationToken);
-        }
+        await SignalAsync(process, "-INT");
 
         await WaitAsync(process);
         Assert.Equal(130, process.ExitCode);
-        Assert.DoesNotContain("fatal:", await stderr);
+
+        // ⛔ The flush is the proof, not the 130: a probe that SIGINT killed outright reads 130 as well.
+        Assert.Equal(["probe: flushed"], Lines(await stderr));
     }
 
     /// <summary>The probe to run: its framework-dependent build beside this one, or the native AOT binary CI names.</summary>
@@ -205,6 +207,14 @@ public sealed class EntryPointProbeTests
         }
 
         return Process.Start(info) ?? throw new InvalidOperationException($"{probe} did not start.");
+    }
+
+    /// <summary>Sends <paramref name="signal"/>, such as <c>-INT</c>, to <paramref name="process"/> through <c>kill</c>.</summary>
+    private static async Task SignalAsync(Process process, string signal)
+    {
+        using Process kill = Process.Start("kill", [signal, process.Id.ToString(CultureInfo.InvariantCulture)])
+            ?? throw new InvalidOperationException("kill did not start.");
+        await kill.WaitForExitAsync(TestContext.Current.CancellationToken);
     }
 
     private static async Task WaitAsync(Process process)
