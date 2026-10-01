@@ -265,10 +265,11 @@ internal sealed class EntryRun : IDisposable
         {
             return PosixSignalRegistration.Create(PosixSignal.SIGTERM, _ => Flush());
         }
-        catch (Exception exception) when (exception is PlatformNotSupportedException or IOException)
+        catch (Exception)
         {
-            // A platform without SIGTERM, or one that cannot install the handler, must not stop the app
-            // from starting: the run goes on without this flush.
+            // ⛔ Nothing that goes wrong here may stop the app from starting, and Start runs outside
+            // AppMain's try: a platform without SIGTERM, a handler it cannot install, access refused.
+            // The run goes on without this flush.
             return null;
         }
     }
