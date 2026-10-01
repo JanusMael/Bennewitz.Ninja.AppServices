@@ -8,5 +8,8 @@
     <!-- A probe is never packed. tests/Directory.Build.props says so for the test project; this
          file has to say it again, because it replaces that one. -->
     <IsPackable>false</IsPackable>
+    <!-- The web SDK warns when `dotnet pack` reaches a project that is not packable, and packing the
+         solution reaches every project. Set here, before the SDK's props, so its default never applies. -->
+    <WarnOnPackingNonPackableProject>false</WarnOnPackingNonPackableProject>
   </PropertyGroup>
 </Project>
