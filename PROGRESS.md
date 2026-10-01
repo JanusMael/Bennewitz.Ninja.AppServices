@@ -110,7 +110,10 @@ together at every version.
   reads 130 too. **Decided 2026-10-01** (maintainer): a console or desktop run registers a SIGTERM
   `PosixSignalRegistration` that flushes and never cancels, so SIGTERM still ends the process; a web
   run's host handles SIGTERM itself, and its run ends and flushes. `EntryPointProbeTests` sends
-  SIGTERM to both kinds and asserts the flush.
+  SIGTERM to both kinds and asserts the flush. A run flushes once, so one that survives SIGTERM, a
+  generic host inside `RunConsoleAsync` for one, has spent its flush before it logs its shutdown;
+  `FlushLog`'s doc and the README send such an app to `RunHostAsync`. A web app SIGTERMed before its
+  host registers dies unflushed, as it did before.
 
 ## Next
 

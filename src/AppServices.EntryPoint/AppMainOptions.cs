@@ -28,6 +28,13 @@ public sealed class AppMainOptions
     /// is terminating on an exception from another thread, or when the process exits without the run
     /// ending, as on SIGTERM.
     /// </summary>
+    /// <remarks>
+    /// ⚠ <b>A run flushes once, and a console or desktop run does it the moment SIGTERM arrives</b>,
+    /// then lets the signal end the process. An app that handles SIGTERM itself and goes on running,
+    /// a generic host for one, logs its shutdown after that flush, and nothing flushes it again; after
+    /// <c>Log.CloseAndFlush</c> those events are dropped. Such an app belongs in
+    /// <see cref="AppMain.RunHostAsync"/>, whose host owns SIGTERM.
+    /// </remarks>
     public Action? FlushLog { get; init; }
 
     /// <summary>
