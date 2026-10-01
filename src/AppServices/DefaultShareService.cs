@@ -36,13 +36,30 @@ public sealed class DefaultShareService : IShareService
 {
     private readonly Func<ProcessStartInfo, Process?> _processLauncher;
 
+    /// <summary>Creates a share service that hands each payload to the platform's own tools.</summary>
+    public DefaultShareService()
+        : this(null)
+    {
+    }
+
+    /// <summary>
+    /// The test seam: <paramref name="processLauncher"/> stands in for
+    /// <see cref="Process.Start(ProcessStartInfo)"/>.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ Internal on purpose. Public, it put <see cref="Process"/> and <see cref="ProcessStartInfo"/>
+    /// in this package's public surface, which <c>BNAQ1002</c> forbids for all of
+    /// <c>System.Diagnostics</c>.
+    /// ⚠ ClaudeForge's tests call it, through the grant in
+    /// <c>AssemblyInfo.InternalsVisibleTo.External.cs</c>. An internal another repository uses is a
+    /// promise: its signature changes only together with a ClaudeForge release.
+    /// </remarks>
     /// <param name="processLauncher">
-    /// Optional override for <see cref="Process.Start(ProcessStartInfo)"/>.
-    /// Pass <c>_ =&gt; null</c> in unit tests to suppress real process launches.
-    /// When <see langword="null"/> the default <see cref="Process.Start(ProcessStartInfo)"/>
-    /// is used.
+    /// Starts the process, or returns <see langword="null"/> for one that did not start; pass
+    /// <c>_ =&gt; null</c> in a unit test to suppress real launches. <see langword="null"/> means
+    /// <see cref="Process.Start(ProcessStartInfo)"/>.
     /// </param>
-    public DefaultShareService(Func<ProcessStartInfo, Process?>? processLauncher = null)
+    internal DefaultShareService(Func<ProcessStartInfo, Process?>? processLauncher)
     {
         _processLauncher = processLauncher ?? Process.Start;
     }
