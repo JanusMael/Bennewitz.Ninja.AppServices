@@ -111,6 +111,11 @@ together at every version.
   `BNAQ1002` now covers `System.Diagnostics` too, and finds nothing else. An assembly built against
   `2026.3.924` that calls the old constructor must be rebuilt, as the README's upgrading section says.
 
+- **`packages.push` lists the ids in dependency order**, the order the release pushes them:
+  `.Abstractions` and `.EntryPoint` first, `.Avalonia` last. `.EntryPoint` is new in this release,
+  and a new id is the push most likely to be refused, so `.Avalonia`, which depends on it, can no
+  longer go live before it. Release only.
+
 ## Drift from `plans/00001`
 
 - **Its "What exists" row on the root `Directory.Build.props` was wrong.** It repeated that file's
