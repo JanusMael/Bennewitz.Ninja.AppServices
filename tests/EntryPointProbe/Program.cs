@@ -30,7 +30,7 @@ static async Task<int> ConsoleAsync(string[] args, CancellationToken cancellatio
             throw new InvalidOperationException("the probe failed on purpose");
 
         case ["wait"]:
-            // The test reads this line before it sends SIGINT.
+            // The test reads this line before it sends SIGINT or SIGTERM.
             Console.Out.WriteLine("waiting");
             await Task.Delay(Timeout.Infinite, cancellationToken);
             return 0;
@@ -59,11 +59,20 @@ static Task HostAsync(string[] args)
 
 static int Desktop(string[] args)
 {
-    if (args is ["fail"])
+    switch (args)
     {
-        throw new InvalidOperationException("the probe's desktop app failed on purpose");
-    }
+        case ["fail"]:
+            throw new InvalidOperationException("the probe's desktop app failed on purpose");
 
-    Console.Out.WriteLine("ok");
-    return 0;
+        case ["wait"]:
+            // The test reads this line before it sends SIGTERM. A desktop app's cancellation is its
+            // window's close, and this one has no window, so only a signal ends it.
+            Console.Out.WriteLine("waiting");
+            Thread.Sleep(Timeout.Infinite);
+            return 0;
+
+        default:
+            Console.Out.WriteLine("ok");
+            return 0;
+    }
 }

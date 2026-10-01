@@ -15,8 +15,9 @@ namespace AppServices.Tests.EntryPoint;
 /// cases skip, visibly.
 /// </para>
 /// <para>
-/// ⚠ SIGINT is sent on Linux and macOS only. A console Ctrl+C cannot be sent to a child process
-/// reliably on Windows, so there the 130 exit is covered in process, by <see cref="AppMainTests"/>.
+/// ⚠ Signals are sent on Linux and macOS only. A console Ctrl+C cannot be sent to a child process
+/// reliably on Windows, so there the 130 exit is covered in process, by <see cref="AppMainTests"/>, and
+/// SIGTERM is not a Windows signal at all.
 /// </para>
 /// <para>
 /// ⛔ A signal test asserts the probe's flush marker, never the exit code alone. .NET reports a child
@@ -143,6 +144,32 @@ public sealed class EntryPointProbeTests
 
         // ⛔ The flush is the proof, not the 130: a probe that SIGINT killed outright reads 130 as well.
         Assert.Equal(["probe: flushed"], Lines(await stderr));
+    }
+
+    [Theory]
+    [MemberData(nameof(Builds))]
+    public async Task SIGTERM_flushes_the_log_and_the_signal_still_ends_the_process(string build)
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux() || OperatingSystem.IsMacOS(),
+            "SIGTERM is not a Windows signal.");
+
+        string probe = Probe(build);
+
+        // A console run and a desktop run flush on SIGTERM themselves; a web run's host handles it.
+        foreach (string[] args in (string[][])[["wait"], ["desktop", "wait"]])
+        {
+            using Process process = Start(probe, args);
+            Task<string> stderr = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal("waiting", await process.StandardOutput.ReadLineAsync(TestContext.Current.CancellationToken));
+            await SignalAsync(process, "-TERM");
+
+            await WaitAsync(process);
+
+            // 128 + 15: SIGTERM still ended the process, as it would have without the flush.
+            Assert.Equal(143, process.ExitCode);
+            Assert.Equal(["probe: flushed"], Lines(await stderr));
+        }
     }
 
     /// <summary>The probe to run: its framework-dependent build beside this one, or the native AOT binary CI names.</summary>
