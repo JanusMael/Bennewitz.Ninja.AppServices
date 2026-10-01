@@ -81,8 +81,10 @@ together at every version.
   `WebApplicationFactory` and stops it on `HostBuilt`; each rule was seen red when broken on
   purpose. The native AOT publish is warning-free on win-x64, and the probe's contract passes
   against the native binary; CI's new required `aot-linux` and `aot-windows` jobs repeat both on
-  every change. The probe's SIGINT test asserts its flush marker, not the exit code alone, since
-  .NET reports a child killed by a signal as 128 plus its number. A new package; the other four are
+  every change. A console or desktop run also flushes the log on SIGTERM, from a
+  `PosixSignalRegistration` that leaves the signal to end the process (see the drift below). The
+  probe's SIGINT and SIGTERM tests assert its flush marker, not the exit code alone, since .NET
+  reports a child killed by a signal as 128 plus its number. A new package; the other four are
   unchanged.
 
 - **`AvaloniaDiagnostics.EntryPointOptions()`**, `plans/00001` step 6: the options
@@ -98,6 +100,15 @@ together at every version.
   comment, "1.0.0 on a local build", but the default was taken before the SDK sets `Version`, so
   `PublicVersion` was empty and no assembly carried it. Found by the entry point's first `--version`
   test, and fixed by adopting the template's `Directory.Build.targets`.
+- **Decision 8's SIGTERM premise was wrong, and so is the reason the Dismissed list gives for
+  leaving SIGTERM alone.** Both have `ProcessExit` flush the log on SIGTERM, but on Linux the
+  runtime ends the process without raising it: a console run and a desktop run were each killed with
+  nothing flushed, three times of three on .NET 10.0.12. Found by the fable-judge pass on #8, which
+  also found the SIGINT test passing with no handler registered, since a child killed by SIGINT
+  reads 130 too. **Decided 2026-10-01** (maintainer): a console or desktop run registers a SIGTERM
+  `PosixSignalRegistration` that flushes and never cancels, so SIGTERM still ends the process; a web
+  run's host handles SIGTERM itself, and its run ends and flushes. `EntryPointProbeTests` sends
+  SIGTERM to both kinds and asserts the flush.
 
 ## Next
 

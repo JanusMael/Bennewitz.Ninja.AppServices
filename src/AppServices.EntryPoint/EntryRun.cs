@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace Bennewitz.Ninja.AppServices.EntryPoint;
 
@@ -45,6 +46,7 @@ internal sealed class EntryRun : IDisposable
     private readonly AppMainOptions _options;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly EntryRun? _previous;
+    private readonly PosixSignalRegistration? _sigterm;
     private int _flushed;
     private int _ctrlCPresses;
 
@@ -62,6 +64,13 @@ internal sealed class EntryRun : IDisposable
         if (_kind == AppKind.Console)
         {
             Console.CancelKeyPress += OnCancelKeyPress;
+        }
+
+        // A web host handles SIGTERM itself and lets its run end, which flushes; the other two kinds
+        // would otherwise be killed by it with their log unflushed.
+        if (_kind != AppKind.Host)
+        {
+            _sigterm = RegisterSigterm();
         }
 
         _previous = s_current.Value;
@@ -159,7 +168,7 @@ internal sealed class EntryRun : IDisposable
         return Failure;
     }
 
-    /// <summary>Flushes the app's log, once per run whichever of its three callers comes first.</summary>
+    /// <summary>Flushes the app's log, once per run whichever of its callers comes first.</summary>
     internal void Flush()
     {
         if (Interlocked.Exchange(ref _flushed, 1) == 0 && _options.FlushLog is { } flush)
@@ -196,6 +205,7 @@ internal sealed class EntryRun : IDisposable
 
     public void Dispose()
     {
+        _sigterm?.Dispose();
         if (_kind == AppKind.Console)
         {
             Console.CancelKeyPress -= OnCancelKeyPress;
@@ -240,9 +250,28 @@ internal sealed class EntryRun : IDisposable
         }
     }
 
-    // An exit no finally sees, such as SIGTERM, still flushes. On a normal exit the run has already
-    // ended and unhooked this, so it does not flush twice.
+    // An exit no finally sees still flushes, Environment.Exit called from the work for one. On a normal
+    // exit the run has already ended and unhooked this, so it does not flush twice.
+    // ⚠ SIGTERM is not such an exit: on Linux it ends the process without raising ProcessExit, so
+    // RegisterSigterm flushes for it instead.
     private void OnProcessExit(object? sender, EventArgs e) => Flush();
+
+    // Flushes on SIGTERM and leaves the signal to do what it does by default, so the process still ends
+    // as SIGTERM ends it, its log flushed first.
+    // ⛔ Never set the context's Cancel: a cancelled SIGTERM would leave the app running.
+    private PosixSignalRegistration? RegisterSigterm()
+    {
+        try
+        {
+            return PosixSignalRegistration.Create(PosixSignal.SIGTERM, _ => Flush());
+        }
+        catch (Exception exception) when (exception is PlatformNotSupportedException or IOException)
+        {
+            // A platform without SIGTERM, or one that cannot install the handler, must not stop the app
+            // from starting: the run goes on without this flush.
+            return null;
+        }
+    }
 
     private void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
     {
