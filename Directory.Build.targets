@@ -11,4 +11,27 @@
     -->
     <PublicVersion Condition="'$(PublicVersion)' == ''">$(Version)</PublicVersion>
   </PropertyGroup>
+
+  <!--
+    Solution-wide friend grants (docs/repository-conventions.md in Bennewitz.Ninja.Templates).
+    Every project compiles the generated AssemblyInfo.InternalsVisibleTo.cs, so its internals are
+    visible to every assembly this repository builds, and the hand-written .External.cs, for grants to
+    other repositories. Linked, never copied. In targets, not props, so the link lands after the
+    project's own items and a Compile Remove in a csproj cannot silently drop it.
+
+    Not linked into:
+    - a project that sets SolutionFriendGrants to false: it grants nothing, and may declare its own;
+    - a file-based app under scripts/ (FileBasedProgram, measured on SDK 10.0.401): linked, a missing
+      or broken grant file would stop repo-conventions.cs itself compiling, so `grants` could never
+      repair it;
+    - a template package, which compiles nothing;
+    - anything but a C# project, since the files are C#.
+
+    `repo-conventions check` fails when a project that has not opted out does not compile both files.
+  -->
+  <ItemGroup Condition="'$(SolutionFriendGrants)' != 'false' and '$(FileBasedProgram)' != 'true' and '$(PackageType)' != 'Template' and '$(MSBuildProjectExtension)' == '.csproj'">
+    <Compile Include="$(MSBuildThisFileDirectory)AssemblyInfo.InternalsVisibleTo.cs" Link="Properties/AssemblyInfo.InternalsVisibleTo.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)AssemblyInfo.InternalsVisibleTo.External.cs" Link="Properties/AssemblyInfo.InternalsVisibleTo.External.cs" />
+  </ItemGroup>
+
 </Project>

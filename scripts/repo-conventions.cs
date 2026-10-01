@@ -26,6 +26,7 @@
 //   dotnet run --file scripts/repo-conventions.cs -- check --release        release preflight: only what is prescribed
 //   dotnet run --file scripts/repo-conventions.cs -- check --admin          everything, with the maintainer's gh login
 //   dotnet run --file scripts/repo-conventions.cs -- apply [--dry-run]      write the settings and rulesets
+//   dotnet run --file scripts/repo-conventions.cs -- grants                 write the solution's friend grants
 //
 //   --repo OWNER/NAME   act on another repository; its files are read through the API
 //   --root DIR          read the files from DIR instead of the current directory
@@ -43,9 +44,9 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 string? verb = args.Length > 0 ? args[0] : null;
-if (verb is not ("check" or "apply"))
+if (verb is not ("check" or "apply" or "grants"))
 {
-    return Usage("the first argument must be 'check' or 'apply'.");
+    return Usage("the first argument must be 'check', 'apply' or 'grants'.");
 }
 
 string? repoName = null;
@@ -79,19 +80,26 @@ if (offline && (verb == "apply" || (repoName is not null && root is null)))
     return Usage("--offline checks a checkout; it cannot apply, and it cannot read another repository through the API.");
 }
 
+if (verb == "grants" && repoName is not null && root is null)
+{
+    return Usage("grants writes into a checkout; it cannot write another repository through the API.");
+}
+
+// `grants` works on the checkout alone, as --offline does: it asks nothing of GitHub.
+bool local = offline || verb == "grants";
 bool remoteTree = repoName is not null && root is null;
 string localRoot = Path.GetFullPath(root ?? Directory.GetCurrentDirectory());
 repoName ??= Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") is { Length: > 0 } fromCi
     ? fromCi
-    : offline ? null : Gh.RepoOf(localRoot);
+    : local ? null : Gh.RepoOf(localRoot);
 
-if (repoName is null && !offline)
+if (repoName is null && !local)
 {
     return Usage("could not tell which repository this is; pass --repo OWNER/NAME.");
 }
 
 Api api = new(repoName ?? "", fixtures);
-(int repoStatus, string repoBody) = offline ? (0, "") : api.Get("");
+(int repoStatus, string repoBody) = local ? (0, "") : api.Get("");
 JsonObject? live = repoStatus == 200 ? JsonNode.Parse(repoBody)?.AsObject() : null;
 string branch = live?["default_branch"]?.GetValue<string>() ?? "main";
 
@@ -126,7 +134,12 @@ else
     }
 }
 
-return verb == "apply" ? Apply() : Check();
+return verb switch
+{
+    "apply" => Apply(),
+    "grants" => WriteGrants(),
+    _ => Check(),
+};
 
 int Check()
 {
@@ -138,7 +151,7 @@ int Check()
         {
             Workflows.CheckRequired(tree, config.RequiredChecks, findings);
         }
-        Props.Check(localRoot, tree, config, repoName, remoteTree, findings);
+        CheckProjects(props: true);
         Drift.Check(tree, remoteTree, findings);
         return Report();
     }
@@ -157,6 +170,9 @@ int Check()
 
     if (release)
     {
+        // The release preflight checks only what is prescribed, and the friend grants are: a release
+        // must not ship a grant list that differs from its projects.
+        CheckProjects(props: false);
         return Report();
     }
 
@@ -191,8 +207,49 @@ int Check()
     Rulesets.Check(api, config, admin, findings);
 
     Settings.Check(api, live, branch, admin, findings);
-    Props.Check(localRoot, tree, config, repoName, remoteTree, findings);
+    CheckProjects(props: true);
     Drift.Check(tree, remoteTree, findings);
+    return Report();
+}
+
+// One restore and one evaluation of every project, shared by the property rules and the friend grants.
+void CheckProjects(bool props)
+{
+    IReadOnlyList<Evaluated>? projects = Projects.Evaluate(localRoot, tree, config, remoteTree, findings);
+    if (projects is null)
+    {
+        return;
+    }
+    if (props)
+    {
+        Props.Check(projects, config, repoName, findings);
+    }
+    Grants.Check(localRoot, tree, projects, findings);
+}
+
+// Writes AssemblyInfo.InternalsVisibleTo.cs from the projects' assembly names, and an empty External
+// file when there is none. An existing External file is never touched.
+int WriteGrants()
+{
+    int before = findings.Count(f => f.Kind == "FAIL");
+    IReadOnlyList<Evaluated>? projects = Projects.Evaluate(localRoot, tree, config, remoteTree, findings);
+    if (projects is null || findings.Count(f => f.Kind == "FAIL") > before)
+    {
+        Console.Error.WriteLine("repo-conventions: a project could not be evaluated, so no grant list was written; it would be incomplete.");
+        return Report();
+    }
+
+    string[] assemblies = Grants.Assemblies(projects);
+    File.WriteAllText(Path.Combine(localRoot, Grants.File), Grants.Generate(assemblies));
+    Console.WriteLine($"wrote {Grants.File}: {assemblies.Length} assemblies, {string.Join(", ", assemblies)}.");
+
+    string external = Path.Combine(localRoot, Grants.External);
+    if (!File.Exists(external))
+    {
+        File.WriteAllText(external, Grants.EmptyExternal);
+        Console.WriteLine($"wrote {Grants.External}, with no grants: add grants to other repositories there by hand.");
+    }
+
     return Report();
 }
 
@@ -288,7 +345,7 @@ int Report()
         Console.WriteLine($"{prefix}{finding.Kind} {finding.Area}: {finding.Message}");
     }
 
-    string depth = offline ? "offline" : release ? "release" : admin ? "admin" : "token";
+    string depth = verb == "grants" ? "local" : offline ? "offline" : release ? "release" : admin ? "admin" : "token";
     string subject = repoName ?? localRoot;
     Console.WriteLine(failures == 0
         ? $"repo-conventions: {subject} conforms ({verb}, {depth} depth)."
@@ -299,7 +356,7 @@ int Report()
 static int Usage(string problem)
 {
     Console.Error.WriteLine("repo-conventions: " + problem);
-    Console.Error.WriteLine("usage: repo-conventions (check [--admin | --release | --offline] | apply [--dry-run] [--replace-branch-protection]) [--repo OWNER/NAME] [--root DIR] [--api-fixtures DIR]");
+    Console.Error.WriteLine("usage: repo-conventions (check [--admin | --release | --offline] | apply [--dry-run] [--replace-branch-protection] | grants) [--repo OWNER/NAME] [--root DIR] [--api-fixtures DIR]");
     return 2;
 }
 
@@ -820,11 +877,16 @@ static class Settings
 /// developer machine, so every evaluation runs with GITHUB_ACTIONS=true, or the check could never
 /// fail on that property locally.
 /// </remarks>
-static class Props
+/// <summary>One project as MSBuild evaluated it, the way CI builds it.</summary>
+sealed record Evaluated(string Path, string Name, JsonObject Properties, JsonNode? Items, string Role)
 {
-    public const string AutoVersioningFloor = "2026.3.916";
-    private const string AutoVersioning = "Bennewitz.Ninja.AutoVersioning";
+    public string Value(string property) => Properties[property] is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
 
+    public IEnumerable<JsonNode> Item(string type) => (Items?[type]?.AsArray() ?? []).Where(i => i is not null)!;
+}
+
+static class Projects
+{
     private static readonly string[] Names =
     [
         "TargetFramework", "TargetFrameworks", "Nullable", "ImplicitUsings", "TreatWarningsAsErrors",
@@ -832,16 +894,26 @@ static class Props
         "IsContinuousIntegration", "IsPackable", "OutputType", "IsTestProject", "PackAsTool",
         "IsRoslynComponent", "PackageType", "Authors", "PackageLicenseExpression", "RepositoryUrl",
         "PackageReadmeFile", "DebugType", "IsTrimmable", "EnableTrimAnalyzer",
+        "AssemblyName", Grants.OptOut,
     ];
+
+    private static readonly string[] ItemTypes =
+        ["PackageReference", "PackageVersion", "Compile", "InternalsVisibleTo", "AssemblyAttribute"];
 
     private static readonly Dictionary<string, string> Ci = new(StringComparer.Ordinal) { ["GITHUB_ACTIONS"] = "true" };
 
-    public static void Check(string root, Tree tree, Config? config, string? repoName, bool remoteTree, List<Finding> findings)
+    /// <summary>
+    /// Restores, then evaluates every project the checks cover: the solution's, or every csproj outside
+    /// shipped content where there is no solution. Null when nothing could be evaluated; a project that
+    /// fails alone is reported and left out.
+    /// </summary>
+    public static IReadOnlyList<Evaluated>? Evaluate(string root, Tree tree, Config? config, bool remoteTree, List<Finding> findings)
     {
         if (remoteTree)
         {
             findings.Add(Finding.Note("props", "Build properties are evaluated from a checkout, after a restore; `check --repo` cannot reach them."));
-            return;
+            findings.Add(Finding.Note("grants", "Friend grants are evaluated from a checkout, after a restore; `check --repo` cannot reach them."));
+            return null;
         }
 
         IReadOnlyList<string> content = config?.Content ?? [];
@@ -855,7 +927,7 @@ static class Props
             if (listExit != 0)
             {
                 findings.Add(Finding.Fail("props", $"`dotnet sln {solution} list` failed: {Tail(listed)}"));
-                return;
+                return null;
             }
             projects = [.. listed.Split('\n').Select(l => l.Trim()).Where(l => l.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))];
         }
@@ -868,7 +940,7 @@ static class Props
         if (projects.Count == 0)
         {
             findings.Add(Finding.Note("props", "No project to evaluate."));
-            return;
+            return [];
         }
 
         foreach (string target in solution is not null ? [solution] : projects)
@@ -877,30 +949,140 @@ static class Props
             if (exit != 0)
             {
                 findings.Add(Finding.Fail("props", $"`dotnet restore {target}` failed, so no property could be evaluated: {Tail(output)}"));
-                return;
+                return null;
             }
         }
 
-        IReadOnlyDictionary<string, string> none = new Dictionary<string, string>();
-        List<string> roles = [];
+        List<Evaluated> evaluated = [];
         foreach (string project in projects)
         {
             string name = Path.GetFileNameWithoutExtension(project.Replace('\\', '/'));
             string[] arguments = ["msbuild", project, "-p:Configuration=Release", .. Names.Select(n => "-getProperty:" + n),
-                "-getItem:PackageReference", "-getItem:PackageVersion"];
+                .. ItemTypes.Select(t => "-getItem:" + t)];
             (int exit, string output) = Shell.Run("dotnet", root, null, Ci, arguments);
-            JsonObject? evaluated = exit == 0 ? Parse(output) : null;
-            if (evaluated?["Properties"] is not JsonObject properties)
+            JsonObject? result = exit == 0 ? Parse(output) : null;
+            if (result?["Properties"] is not JsonObject properties)
             {
                 findings.Add(Finding.Fail("props", $"{name} could not be evaluated: {Tail(output)}"));
                 continue;
             }
+            JsonNode? items = result["Items"];
+            if (Text(properties["TargetFramework"]).Length == 0 && Text(properties["TargetFrameworks"]) is { Length: > 0 } frameworks)
+            {
+                items = PerFramework(root, project, name, frameworks, items, findings);
+            }
+            evaluated.Add(new Evaluated(project, name, properties, items, Role(properties)));
+        }
+        return evaluated;
+    }
 
-            string role = Role(properties);
+    // ⛔ A multi-targeted project's outer evaluation has no TargetFramework, and holds none of the
+    // project's own Compile items, nor any item an ItemGroup conditions on a framework: a grant declared
+    // in its source passed unseen. So the items the grant checks read come from each framework's own
+    // evaluation, combined.
+    private static readonly string[] PerFrameworkTypes = ["Compile", "InternalsVisibleTo", "AssemblyAttribute"];
+
+    private static JsonNode? PerFramework(string root, string project, string name, string frameworks, JsonNode? outer, List<Finding> findings)
+    {
+        JsonObject merged = outer?.DeepClone() as JsonObject ?? new JsonObject();
+        Dictionary<string, (JsonArray Items, HashSet<string> Seen)> combined = [];
+        foreach (string type in PerFrameworkTypes)
+        {
+            combined[type] = (new JsonArray(), new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        foreach (string framework in frameworks.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string[] arguments = ["msbuild", project, "-p:Configuration=Release", "-p:TargetFramework=" + framework,
+                .. PerFrameworkTypes.Select(t => "-getItem:" + t)];
+            (int exit, string output) = Shell.Run("dotnet", root, null, Ci, arguments);
+            if ((exit == 0 ? Parse(output) : null)?["Items"] is not JsonObject inner)
+            {
+                findings.Add(Finding.Fail("grants", $"{name} could not be evaluated for {framework}: {Tail(output)}"));
+                continue;
+            }
+            foreach (string type in PerFrameworkTypes)
+            {
+                foreach (JsonNode? item in inner[type]?.AsArray() ?? [])
+                {
+                    string key = Text(item?["FullPath"]) is { Length: > 0 } full ? full : Text(item?["Identity"]) + "|" + Text(item?["_Parameter1"]);
+                    if (item is not null && combined[type].Seen.Add(key))
+                    {
+                        combined[type].Items.Add(item.DeepClone());
+                    }
+                }
+            }
+        }
+
+        foreach (string type in PerFrameworkTypes)
+        {
+            merged[type] = combined[type].Items;
+        }
+        return merged;
+    }
+
+    /// <summary>
+    /// The first role that matches, in this order. ⚠ The order matters: an xUnit v3 test project is a
+    /// non-packable executable, and would read as an app if <c>app</c> were tested first.
+    /// </summary>
+    private static string Role(JsonObject p) =>
+        Text(p["PackageType"]) == "Template" ? "template"
+        : Text(p["IsRoslynComponent"]) == "true" ? "analyzer"
+        : Text(p["IsTestProject"]) == "true" ? "test"
+        : Text(p["PackAsTool"]) == "true" ? "tool"
+        : Text(p["IsPackable"]) == "true" ? "library"
+        : Text(p["OutputType"]) is "Exe" or "WinExe" ? "app"
+        : "other";
+
+    private static JsonObject? Parse(string output)
+    {
+        int start = output.IndexOf('{');
+        if (start < 0)
+        {
+            return null;
+        }
+        try
+        {
+            return JsonNode.Parse(output[start..]) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
+
+    public static string Tail(string output)
+    {
+        string[] lines = [.. output.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0)];
+        return lines.Length == 0 ? "no output" : string.Join(" | ", lines.TakeLast(3));
+    }
+}
+
+static class Props
+{
+    public const string AutoVersioningFloor = "2026.3.916";
+    private const string AutoVersioning = "Bennewitz.Ninja.AutoVersioning";
+
+    public static void Check(IReadOnlyList<Evaluated> projects, Config? config, string? repoName, List<Finding> findings)
+    {
+        if (projects.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyDictionary<string, string> none = new Dictionary<string, string>();
+        List<string> roles = [];
+        foreach (Evaluated evaluated in projects)
+        {
+            string name = evaluated.Name;
+            JsonObject properties = evaluated.Properties;
+            string role = evaluated.Role;
             roles.Add($"{name} ({role})");
             IReadOnlyDictionary<string, string> exempt = config?.PropsExempt.GetValueOrDefault(name) ?? none;
 
-            foreach ((string rule, string? problem) in Rules(properties, evaluated["Items"], role, repoName))
+            foreach ((string rule, string? problem) in Rules(properties, evaluated.Items, role, repoName))
             {
                 if (problem is null)
                 {
@@ -927,19 +1109,6 @@ static class Props
 
         findings.Add(Finding.Note("props", $"{projects.Count} projects evaluated after a restore, as CI evaluates them: {string.Join(", ", roles)}."));
     }
-
-    /// <summary>
-    /// The first role that matches, in this order. ⚠ The order matters: an xUnit v3 test project is a
-    /// non-packable executable, and would read as an app if <c>app</c> were tested first.
-    /// </summary>
-    private static string Role(JsonObject p) =>
-        Value(p, "PackageType") == "Template" ? "template"
-        : Value(p, "IsRoslynComponent") == "true" ? "analyzer"
-        : Value(p, "IsTestProject") == "true" ? "test"
-        : Value(p, "PackAsTool") == "true" ? "tool"
-        : Value(p, "IsPackable") == "true" ? "library"
-        : Value(p, "OutputType") is "Exe" or "WinExe" ? "app"
-        : "other";
 
     /// <summary>Every rule for this role, each with its problem, or null where the project meets it.</summary>
     private static IEnumerable<(string Rule, string? Problem)> Rules(JsonObject p, JsonNode? items, string role, string? repoName)
@@ -1027,32 +1196,286 @@ static class Props
         return Version.TryParse(bare, out Version? actual) && Version.TryParse(floor, out Version? minimum) && actual >= minimum;
     }
 
-    private static JsonObject? Parse(string output)
-    {
-        int start = output.IndexOf('{');
-        if (start < 0)
-        {
-            return null;
-        }
-        try
-        {
-            return JsonNode.Parse(output[start..]) as JsonObject;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
     private static string Value(JsonObject p, string name) => Text(p[name]);
 
     private static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
+}
 
-    private static string Tail(string output)
+/// <summary>
+/// Solution-wide friend grants (plans/00006): every project grants InternalsVisibleTo to every
+/// assembly the repository builds, through one generated file that Directory.Build.targets links into
+/// each project, and one hand-written file for grants to other repositories.
+/// </summary>
+static class Grants
+{
+    public const string File = "AssemblyInfo.InternalsVisibleTo.cs";
+    public const string External = "AssemblyInfo.InternalsVisibleTo.External.cs";
+    public const string OptOut = "SolutionFriendGrants";
+
+    private const string Regenerate = "dotnet run --file scripts/repo-conventions.cs -- grants";
+
+    /// <summary>Ends a line of the External file whose prefixed name is a real assembly's.</summary>
+    public const string PrefixChecked = "// repo-conventions: assembly name";
+
+    // A grant declared in C#, read from the code alone (Code strips comments and every literal): an
+    // [assembly: …] section anywhere, across lines, holding the attribute among others or under a
+    // `using` alias. ⛔ Each of these was a real miss, or a false finding, of a line-by-line match: a
+    // grant listed after another attribute, one split across lines, one through an alias, and a raw
+    // string literal whose line begins with the attribute's text (CodeQuality's tests carry one).
+    private static readonly Regex AssemblySection = new(@"\[\s*assembly\s*:(?<body>[^\]]*)\]", RegexOptions.CultureInvariant);
+
+    private static readonly Regex Alias = new(
+        @"\busing\s+(?<alias>\w+)\s*=\s*(global::)?(System\.Runtime\.CompilerServices\.)?InternalsVisibleTo(Attribute)?\s*;",
+        RegexOptions.CultureInvariant);
+
+    private static bool DeclaresGrant(string source)
     {
-        string[] lines = [.. output.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0)];
-        return lines.Length == 0 ? "no output" : string.Join(" | ", lines.TakeLast(3));
+        string code = Code(source);
+        string[] names = ["InternalsVisibleTo", "InternalsVisibleToAttribute", .. Alias.Matches(code).Select(m => m.Groups["alias"].Value)];
+        Regex attribute = new(
+            @"(?<![\w.])(global::)?(System\.Runtime\.CompilerServices\.)?(" + string.Join("|", names.Select(Regex.Escape)) + @")\s*\(",
+            RegexOptions.CultureInvariant);
+        return AssemblySection.Matches(code).Any(section => attribute.IsMatch(section.Groups["body"].Value));
     }
+
+    /// <summary>
+    /// C# source with comments and every string or character literal blanked, so only code is left:
+    /// regular, verbatim (@), interpolated ($, $@, @$) and raw ("""…""", with any $ prefix).
+    /// </summary>
+    private static string Code(string text)
+    {
+        StringBuilder code = new(text.Length);
+        int i = 0;
+        while (i < text.Length)
+        {
+            char c = text[i];
+            char next = i + 1 < text.Length ? text[i + 1] : '\0';
+
+            if (c == '/' && next == '/')
+            {
+                while (i < text.Length && text[i] != '\n')
+                {
+                    i++;
+                }
+                continue;
+            }
+            if (c == '/' && next == '*')
+            {
+                int end = text.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                i = end < 0 ? text.Length : end + 2;
+                code.Append(' ');
+                continue;
+            }
+            if (c == '\'')
+            {
+                i++;
+                while (i < text.Length && text[i] != '\'' && text[i] != '\n')
+                {
+                    i += text[i] == '\\' ? 2 : 1;
+                }
+                i++;
+                code.Append("' '");
+                continue;
+            }
+
+            // A string literal, after its $ and @ prefixes.
+            int start = i;
+            bool verbatim = false;
+            while (i < text.Length && (text[i] == '$' || text[i] == '@'))
+            {
+                verbatim |= text[i] == '@';
+                i++;
+            }
+            if (i >= text.Length || text[i] != '"')
+            {
+                i = start;
+                code.Append(c);
+                i++;
+                continue;
+            }
+
+            int quotes = 0;
+            while (i + quotes < text.Length && text[i + quotes] == '"')
+            {
+                quotes++;
+            }
+            if (quotes >= 3)
+            {
+                // Raw: closed by the same run of quotes.
+                int close = text.IndexOf(new string('"', quotes), i + quotes, StringComparison.Ordinal);
+                i = close < 0 ? text.Length : close + quotes;
+            }
+            else if (verbatim)
+            {
+                i++;
+                while (i < text.Length && !(text[i] == '"' && (i + 1 >= text.Length || text[i + 1] != '"')))
+                {
+                    i += text[i] == '"' ? 2 : 1;
+                }
+                i++;
+            }
+            else
+            {
+                i++;
+                while (i < text.Length && text[i] != '"' && text[i] != '\n')
+                {
+                    i += text[i] == '\\' ? 2 : 1;
+                }
+                i++;
+            }
+            code.Append("\"\"");
+        }
+        return code.ToString();
+    }
+
+    private static readonly Regex Named = new(
+        @"InternalsVisibleTo(Attribute)?\s*\(\s*""([^""]+)""", RegexOptions.CultureInvariant);
+
+    public const string EmptyExternal =
+        """
+        // AssemblyInfo.InternalsVisibleTo.External.cs: grants to assemblies OUTSIDE this repository.
+        //
+        // Written by hand. `repo-conventions grants` writes this file only when it is missing, and never
+        // touches it after. Directory.Build.targets links it into every project that links
+        // AssemblyInfo.InternalsVisibleTo.cs, so a name here sees the internals of every such project.
+        //
+        // A name is an ASSEMBLY name. Most family assemblies are unprefixed ("AppServices"), and a grant
+        // to the root namespace instead ("Bennewitz.Ninja.AppServices") compiles, ships and grants
+        // nothing. Some do carry the prefix (FileServer's, Geo.Core's): `repo-conventions check` notes
+        // every prefixed name, and a line ending `// repo-conventions: assembly name` marks one checked.
+        // An internal another repository uses is a promise: change it only together with a release of
+        // that repository. See docs/repository-conventions.md in Bennewitz.Ninja.Templates.
+        //
+        // [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AppServices")]
+
+        """;
+
+    /// <summary>The assembly names the generated file grants to: every evaluated project's but a template's.</summary>
+    public static string[] Assemblies(IReadOnlyList<Evaluated> projects) =>
+        [.. projects.Where(p => p.Role != "template")
+            .Select(p => p.Value("AssemblyName") is { Length: > 0 } assembly ? assembly : p.Name)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)];
+
+    public static string Generate(IEnumerable<string> assemblies)
+    {
+        StringBuilder text = new(
+            """
+            // <auto-generated>
+            //   Written by `dotnet run --file scripts/repo-conventions.cs -- grants` from the assembly name
+            //   of every project in this repository. Do not edit it: regenerate it. `repo-conventions check`
+            //   fails when it differs from what `grants` would write.
+            // </auto-generated>
+            //
+            // Solution-wide friend grants: Directory.Build.targets links this file into every project, so
+            // each project's internals are visible to every other. `internal` means solution-internal, and a
+            // member no other assembly may reach is `private`. A project that sets SolutionFriendGrants to
+            // false grants nothing, and may declare grants of its own. None of this is a security boundary:
+            // no family assembly is strong-named. See docs/repository-conventions.md in
+            // Bennewitz.Ninja.Templates.
+
+
+            """);
+        foreach (string assembly in assemblies)
+        {
+            text.Append("[assembly: System.Runtime.CompilerServices.InternalsVisibleTo(\"").Append(assembly).Append("\")]\n");
+        }
+        return text.ToString();
+    }
+
+    public static void Check(string root, Tree tree, IReadOnlyList<Evaluated> projects, List<Finding> findings)
+    {
+        if (projects.Count == 0)
+        {
+            return;
+        }
+
+        string[] wanted = Assemblies(projects);
+        string? current = tree.Read(File);
+        if (current is null)
+        {
+            findings.Add(Finding.Fail("grants", $"{File} is missing. Run `{Regenerate}`, which writes it from the projects' assembly names."));
+        }
+        else if (Normalize(current) != Normalize(Generate(wanted)))
+        {
+            findings.Add(Finding.Fail("grants",
+                $"{File} is out of date: it grants [{string.Join(", ", Names(current))}], but the projects build [{string.Join(", ", wanted)}]. Run `{Regenerate}`."));
+        }
+
+        string? external = tree.Read(External);
+        if (external is null)
+        {
+            findings.Add(Finding.Fail("grants", $"{External} is missing. `grants` writes an empty one; grants to other repositories go there, by hand."));
+        }
+        else
+        {
+            // ⚠ A NOTE, not a FAIL (the maintainer's decision, 2026-10-01): a prefixed name is a root
+            // namespace by mistake for most family assemblies, but FileServer's, Geo.Core's and others'
+            // assemblies really carry the prefix, and a grant to one of them is right. A wrong name
+            // grants nothing, and fails the consumer's own build (CS0122) the moment it is used.
+            foreach (string line in Uncommented(external).Where(l => !l.Contains(PrefixChecked, StringComparison.Ordinal)))
+            {
+                foreach (string name in Named.Matches(line).Select(m => m.Groups[2].Value).Where(n => n.StartsWith("Bennewitz.Ninja.", StringComparison.Ordinal)))
+                {
+                    findings.Add(Finding.Note("grants",
+                        $"{External} grants \"{name}\", a prefixed name. A grant matches an assembly's name, so this is right only if an assembly is named exactly \"{name}\" (FileServer's and Geo.Core's are; most family assemblies are unprefixed); a name no assembly has grants nothing. "
+                        + $"If it is wrong, name the assembly. If it is right, silence this note by ending that line with the comment `{PrefixChecked}`, so it reads: "
+                        + $"[assembly: System.Runtime.CompilerServices.InternalsVisibleTo(\"{name}\")] {PrefixChecked}"));
+                }
+            }
+        }
+
+        string[] linked = [Path.GetFullPath(Path.Combine(root, File)), Path.GetFullPath(Path.Combine(root, External))];
+        foreach (Evaluated project in projects.Where(p => p.Role != "template"))
+        {
+            // Case-insensitive, as MSBuild compares the link's condition: "False" unlinks the files too.
+            if (string.Equals(project.Value(OptOut), "false", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string[] compiled = [.. project.Item("Compile").Select(i => Text(i["FullPath"]) is { Length: > 0 } full ? full : Text(i["Identity"]))];
+            foreach (string file in linked.Where(f => !compiled.Contains(f, StringComparer.OrdinalIgnoreCase)))
+            {
+                findings.Add(Finding.Fail("grants",
+                    $"{project.Name} does not compile {System.IO.Path.GetFileName(file)}. The root Directory.Build.targets links it into every project, as the template's does: add the link if the repository has none, import the root file from a nearer Directory.Build.targets that shadows it, or set {OptOut} to false in {project.Name}."));
+            }
+
+            foreach (JsonNode item in project.Item("InternalsVisibleTo"))
+            {
+                findings.Add(Finding.Fail("grants", $"{project.Name} declares its own grant to \"{Text(item["Identity"])}\" in an <InternalsVisibleTo> item. {OwnGrant}"));
+            }
+
+            foreach (JsonNode item in project.Item("AssemblyAttribute").Where(i =>
+                Text(i["Identity"]) is "System.Runtime.CompilerServices.InternalsVisibleTo" or "System.Runtime.CompilerServices.InternalsVisibleToAttribute"))
+            {
+                findings.Add(Finding.Fail("grants", $"{project.Name} declares its own grant to \"{Text(item["_Parameter1"])}\" in an <AssemblyAttribute>. {OwnGrant}"));
+            }
+
+            foreach (string file in compiled.Where(f => !linked.Contains(f, StringComparer.OrdinalIgnoreCase) && System.IO.File.Exists(f)))
+            {
+                if (DeclaresGrant(System.IO.File.ReadAllText(file)))
+                {
+                    findings.Add(Finding.Fail("grants",
+                        $"{project.Name}: {System.IO.Path.GetRelativePath(root, file).Replace('\\', '/')} declares [assembly: InternalsVisibleTo]. {OwnGrant}"));
+                }
+            }
+        }
+    }
+
+    private const string OwnGrant =
+        $"Grants come from {File}, or {External} for another repository; a project that needs its own sets {OptOut} to false.";
+
+    /// <summary>The names granted in a file's code, comment lines left out.</summary>
+    private static string[] Names(string text) =>
+        [.. Uncommented(text).SelectMany(line => Named.Matches(line).Select(m => m.Groups[2].Value))];
+
+    private static IEnumerable<string> Uncommented(string text) =>
+        text.Split('\n').Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal));
+
+    private static string Normalize(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n');
+
+    private static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
 }
 
 static class Drift

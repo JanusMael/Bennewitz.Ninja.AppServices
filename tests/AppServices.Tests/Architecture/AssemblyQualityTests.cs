@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Bennewitz.Ninja.AssemblyQuality;
 using Bennewitz.Ninja.AssemblyQuality.Rules;
 
@@ -112,6 +113,33 @@ public sealed class AssemblyQualityTests
     }
 
     /// <summary>
+    /// Every grant compiled into a shipped assembly names an assembly the repository's two grant files
+    /// allow: the generated list of every assembly it builds, and the hand-written External file's
+    /// names for the maintainer's other repositories.
+    /// </summary>
+    /// <remarks>
+    /// Read from the compiled assemblies, so a grant from anywhere else, a stray attribute, a project
+    /// item or a generator, fails here even where <c>repo-conventions check</c> cannot see it. A name
+    /// in the External file is allowed by design; <c>check</c> covers that file.
+    /// </remarks>
+    [Fact]
+    public void BNAQ1005_every_friend_grant_names_an_allowed_assembly()
+    {
+        string[] allowed =
+        [
+            .. GrantedNames("AssemblyInfo.InternalsVisibleTo.cs"),
+            .. GrantedNames("AssemblyInfo.InternalsVisibleTo.External.cs"),
+        ];
+
+        AssemblyRuleResult result = new FriendGrantRule(allowed).Analyze(AssemblyScanContext.Of(Shipped));
+
+        Assert.Empty(result.Findings);
+        Assert.True(result.Inspected > 0, "BNAQ1005 inspected no grant, but every shipped assembly "
+            + "compiles the generated grants, so the scan missed them.");
+        AssertNothingSkipped("BNAQ1005", result);
+    }
+
+    /// <summary>
     /// Fails when a rule could not load part of what it was given, naming each part in full: a clean
     /// result says nothing about what the rule never saw.
     /// </summary>
@@ -120,6 +148,12 @@ public sealed class AssemblyQualityTests
             result.Skipped.Count == 0,
             $"{rule} could not examine everything it was given, so its clean result is partial:\n  "
             + string.Join("\n  ", result.Skipped));
+
+    /// <summary>The names a grant file at the repository root grants to, comment lines left out.</summary>
+    private static IEnumerable<string> GrantedNames(string file) =>
+        File.ReadLines(Path.Combine(RepoRoot(), file))
+            .Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal))
+            .SelectMany(line => Regex.Matches(line, "InternalsVisibleTo\\(\"([^\"]+)\"\\)").Select(m => m.Groups[1].Value));
 
     private static Assembly LoadFromOutput(string name)
     {

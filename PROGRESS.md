@@ -60,10 +60,8 @@ together at every version.
   removed from a copy of the test output: at 2026.3.925 `BNAQ1001`, `BNAQ1002` and `BNAQ1004` threw
   `FileNotFoundException`; at 2026.3.928 `BNAQ1004` still did, reading the namespace of
   `BucketedRollingFileSink`'s compiler-generated `<>c`, which was reported from here; now all three
-  fail naming what they could not examine. The new `BNAQ1005` and `BNAQ1006` are not adopted:
-  `BNAQ1005`'s allowed grants wait for the family's `InternalsVisibleTo` convention, which arrives
-  with the next Templates conventions sync, and `BNAQ1006` is a release-time check against published
-  consumers. Tests only.
+  fail naming what they could not examine. `BNAQ1006` is not adopted: it is a release-time check
+  against published consumers. `BNAQ1005` came with the friend grants below. Tests only.
 
 - **`plans/`**, the family's numbered plans, and `00001`, an entry point every app template calls
   (approved 2026-09-30), which answers step 1 of Bennewitz.Ninja.Templates' `00007`. Documents only.
@@ -96,6 +94,15 @@ together at every version.
   depends on `.EntryPoint`; `AvaloniaDiagnosticsEntryPointTests` saw both halves red when each was
   broken on purpose.
 
+- **Solution-wide friend grants**, Templates' `plans/00006`: `scripts/repo-conventions.cs` is the
+  template's current copy (Templates `dc46e70`), and the root `Directory.Build.targets` is `bbpkg`'s,
+  which links two root files into every project: the generated `AssemblyInfo.InternalsVisibleTo.cs`,
+  granting all eight assemblies built here, and the hand-written
+  `AssemblyInfo.InternalsVisibleTo.External.cs`, with no grants yet. The four per-project grants to
+  `AppServices.Tests` are gone, and `BNAQ1005` checks every compiled grant against the two files.
+  The packages now carry grants to their siblings, the probes and the tests; nothing else a package
+  carries changes.
+
 ## Drift from `plans/00001`
 
 - **Its "What exists" row on the root `Directory.Build.props` was wrong.** It repeated that file's
@@ -119,8 +126,8 @@ together at every version.
 
 1. **`plans/00001` steps 7–8**: a release of all five ids, then telling the Templates session the
    version, the API and the AOT measurement. Templates' `00007` steps 2 and 3 wait for that release.
-   **Go given 2026-10-01** (maintainer): once #8, item 7 and the `DefaultShareService` change in
-   item 6 are merged with `main` green.
+   **Go given 2026-10-01** (maintainer): once #8, the friend grants and the `DefaultShareService`
+   change in item 6 are merged with `main` green.
 2. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
    `AppServicesLayeringTests` (the class is `LayeringTests`); `MovedSourceSmokeTests` describes
    the layering guards as still to come; `ShellLauncherWindowsTerminalTests` gives a VSTest
@@ -139,10 +146,4 @@ together at every version.
    `ShareServiceTests`); only its app writes `new DefaultShareService()`. **Decided 2026-10-01**
    (maintainer): it goes internal in the release that carries `.EntryPoint`, with
    `System.Diagnostics` added to `BNAQ1002`'s set and `ClaudeForge.Tests` granted
-   `InternalsVisibleTo` in the External file item 7 brings.
-7. **Adopt Templates' `plans/00006`, solution-wide friend grants**, before item 6 and the release
-   (decided 2026-10-01, maintainer): the synced `scripts/repo-conventions.cs`, the generated
-   `AssemblyInfo.InternalsVisibleTo.cs`, a hand-written `AssemblyInfo.InternalsVisibleTo.External.cs`,
-   no per-project grants, and `BNAQ1005` over the solution's assemblies and the External file's
-   names. Grants to any of the maintainer's other repositories are allowed, so `src/AGENTS.md`'s
-   "tests only" rule goes with it.
+   `InternalsVisibleTo` in the External file.
