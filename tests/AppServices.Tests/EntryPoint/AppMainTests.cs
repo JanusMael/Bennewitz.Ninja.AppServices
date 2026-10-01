@@ -151,6 +151,22 @@ public sealed class AppMainTests : IDisposable
     }
 
     [Fact]
+    public async Task After_Ctrl_C_a_usage_error_still_exits_130()
+    {
+        // Ctrl+C outranks a usage error (plans/00001, decision 5): the run was cancelled, so it is
+        // reported as one, and the usage is not printed.
+        int code = await AppMain.RunConsoleAsync(Versioned, ["--bogus"], (_, _) =>
+        {
+            EntryRun.Current!.PressCtrlC();
+            throw new UsageException("unknown option: --bogus");
+        }, new AppMainOptions { Usage = "usage: app [--fail]" });
+
+        Assert.Equal(130, code);
+        Assert.StartsWith("fatal: AppServices.Tests stopped on an unhandled exception after Ctrl+C", _stderr.ToString());
+        Assert.DoesNotContain("usage: app", _stderr.ToString());
+    }
+
+    [Fact]
     public async Task Only_the_first_Ctrl_C_is_intercepted_so_a_hung_run_can_still_be_killed()
     {
         List<bool> intercepted = [];

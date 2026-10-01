@@ -84,8 +84,8 @@ together at every version.
   every change. A console or desktop run also flushes the log on SIGTERM, from a
   `PosixSignalRegistration` that leaves the signal to end the process (see the drift below). The
   probe's SIGINT and SIGTERM tests assert its flush marker, not the exit code alone, since .NET
-  reports a child killed by a signal as 128 plus its number. A new package; the other four are
-  unchanged.
+  reports a child killed by a signal as 128 plus its number; `AppMainTests` holds a usage error
+  after Ctrl+C to 130, the order decision 5 sets. A new package; the other four are unchanged.
 
 - **`AvaloniaDiagnostics.EntryPointOptions()`**, `plans/00001` step 6: the options
   `AppMain.RunDesktop` takes in an Avalonia app. A failure is logged as fatal, then shown in the
