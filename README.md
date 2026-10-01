@@ -52,10 +52,12 @@ return AppMain.RunDesktop(typeof(Program).Assembly, args, Run, AvaloniaDiagnosti
 
 `--version`, as the only argument, prints the app's `[AssemblyMetadata("PublicVersion")]` before the
 work runs. The fatal report is written to stderr before any callback, so it needs no logger, and
-`FlushLog` flushes the app's own log on every exit, SIGTERM included. An exception on another thread
-is reported and flushed too, but the process then ends with the runtime's own exit code. A
-`HostAbortedException`, which design-time tools such as `dotnet ef` throw to stop an app, passes
-through untouched.
+`FlushLog` flushes the app's own log on every exit. On SIGTERM, a console or desktop app flushes as
+the signal arrives and then ends; a web app's host, once it is running, shuts down and ends the run,
+which flushes. A run flushes only once, so an app that handles SIGTERM itself, with a generic host
+for one, belongs in `RunHostAsync`. An exception on another thread is reported and flushed too, but
+the process then ends with the runtime's own exit code. A `HostAbortedException`, which design-time
+tools such as `dotnet ef` throw to stop an app, passes through untouched.
 
 ## Upgrading from 2026.3.923
 
