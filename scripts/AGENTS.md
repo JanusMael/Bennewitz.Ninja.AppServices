@@ -6,7 +6,7 @@ File-based C# apps, run with `dotnet run`. Each is compiled with this repository
 | Script | What it does | Run by |
 |---|---|---|
 | `assert-packages.cs` | Checks that the packages `dotnet pack` actually produced are exactly the ones `packages.push` and `packages.local` declare | CI's `pack` job, and the release step `Assert packed matches declared` before it publishes |
-| `repo-conventions.cs` | Checks, and applies, the family's repository conventions: documentation, GitHub settings and rulesets | CI's `conventions` job, and the maintainer |
+| `repo-conventions.cs` | Checks, and applies, the family's repository conventions: documentation, GitHub settings and rulesets, and with `grants` writes the solution-wide friend grants | CI's `conventions` job, and the maintainer |
 
 ## Rules
 
@@ -17,3 +17,4 @@ File-based C# apps, run with `dotnet run`. Each is compiled with this repository
 | `assert-packages.cs` fails on an empty or missing packages directory | A release that publishes nothing is a failure, not a no-op |
 | A file-based app is compiled trimmed | Reflection-based serialisation fails the build with `IL2026`; `repo-conventions.cs` builds JSON with `System.Text.Json.Nodes` for that reason |
 | Run `repo-conventions.cs` with `dotnet run --file` | Beside a `.csproj`, `dotnet run <file>` binds to the project instead |
+| A file-based app never links the grant files | Linked, a missing or broken grant file would stop `repo-conventions.cs` itself compiling, so `grants` could never repair it | the `FileBasedProgram` condition in the root `Directory.Build.targets` |
