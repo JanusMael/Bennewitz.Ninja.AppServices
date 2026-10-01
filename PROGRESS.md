@@ -98,10 +98,10 @@ together at every version.
   template's current copy (Templates `dc46e70`), and the root `Directory.Build.targets` is `bbpkg`'s,
   which links two root files into every project: the generated `AssemblyInfo.InternalsVisibleTo.cs`,
   granting all eight assemblies built here, and the hand-written
-  `AssemblyInfo.InternalsVisibleTo.External.cs`, with no grants yet. The four per-project grants to
-  `AppServices.Tests` are gone, and `BNAQ1005` checks every compiled grant against the two files.
-  The packages now carry grants to their siblings, the probes and the tests; nothing else a package
-  carries changes.
+  `AssemblyInfo.InternalsVisibleTo.External.cs`, which grants `ClaudeForge.Tests` (below). The four
+  per-project grants to `AppServices.Tests` are gone, and `BNAQ1005` checks every compiled grant
+  against the two files. The packages now carry grants to their siblings, the probes, the tests and
+  `ClaudeForge.Tests`; nothing else a package carries changes.
 
 - **`DefaultShareService`'s `Process` seam is internal** (breaking): the class has one public
   constructor, which takes nothing, and the `Func<ProcessStartInfo, Process?>` test seam is
