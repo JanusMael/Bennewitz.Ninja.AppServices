@@ -83,6 +83,29 @@ public sealed class LayeringTests
     }
 
     [Fact]
+    public void Every_project_under_src_has_a_tier()
+    {
+        // ⛔ The converse of the test above. The tiers guard only what they name, so a project with
+        // no row is outside every check in this class and outside BNAQ1003, and nothing fails.
+        string[] projects =
+        [
+            .. Directory.EnumerateFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)
+                .Select(path => Path.GetFileNameWithoutExtension(path))
+                .Order(StringComparer.Ordinal),
+        ];
+
+        Assert.True(projects.Length > 0, "No project under src/ — this test cannot see what it is guarding.");
+
+        string[] untiered = [.. projects.Except(Tiers.Select(t => t.Project), StringComparer.Ordinal)];
+
+        Assert.True(
+            untiered.Length == 0,
+            "A project under src/ has no row in LayeringTests.Tiers:\n  " + string.Join("\n  ", untiered)
+            + "\n\nWithout one it is outside every layering check here and BNAQ1003. Add its row: the "
+            + "projects it may reference and the packages it must not.");
+    }
+
+    [Fact]
     public void No_project_reaches_outside_its_tier()
     {
         List<string> violations = [];

@@ -33,6 +33,10 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
   Microsoft.Testing.Platform filter, `--filter-trait "Category=…"`, which selects its one
   diagnostic and three integration tests; `Parallelization.cs` names the static state the serial
   run protects, since `SerilogAvaloniaSinkTests`, which it named, changes none.
+- **In the repository, every project under `src/` must have a tier.**
+  `LayeringTests.Every_project_under_src_has_a_tier` fails for a project with no row in
+  `LayeringTests.Tiers`, which would otherwise sit outside every layering check and BNAQ1003 with
+  nothing failing. With the `AppServices.EntryPoint` row deleted, it fails and names that project.
 
 ## Drift from `plans/00001`
 
@@ -55,9 +59,7 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
 
 ## Next
 
-1. **Guard that every project under `src/` has a row in `LayeringTests.Tiers`.** Today a new
-   project with no row is outside the tier checks and BNAQ1003, and nothing fails.
-2. **Headless isolation per assembly** is unverified and waits for evidence before
+1. **Headless isolation per assembly** is unverified and waits for evidence before
    `[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]` is considered.
-3. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
+2. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
    here is scheduled for them.
