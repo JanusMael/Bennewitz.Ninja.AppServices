@@ -31,8 +31,9 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
   `AppServices.Abstractions.csproj` names `LayeringTests`; `MovedSourceSmokeTests` names the
   layering guards as they now exist; `ShellLauncherWindowsTerminalTests` gives the
   Microsoft.Testing.Platform filter, `--filter-trait "Category=…"`, which selects its one
-  diagnostic and three integration tests; `Parallelization.cs` names the static state the serial
-  run protects, since `SerilogAvaloniaSinkTests`, which it named, changes none.
+  diagnostic and three integration tests; `Parallelization.cs` names the static state and the
+  process-wide handlers the serial run protects, since `SerilogAvaloniaSinkTests`, which it named,
+  changes none.
 - **In the repository, every project under `src/` must have a tier.**
   `LayeringTests.Every_project_under_src_has_a_tier` fails for a project with no row in
   `LayeringTests.Tiers`, which would otherwise sit outside every layering check and BNAQ1003 with
