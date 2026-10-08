@@ -458,6 +458,8 @@ public sealed class BucketedRollingFileSinkTests : IDisposable
 
         using (BucketedRollingFileSink sink = new(_dir, clock: () => now))
         {
+            // Information first, so the file exists and a regression fails on the line it dropped.
+            sink.Emit(MakeEvent("an information line"));
             sink.Emit(MakeEvent("a verbose line", LogEventLevel.Verbose));
             sink.Emit(MakeEvent("a debug line", LogEventLevel.Debug));
         } // dispose flushes
