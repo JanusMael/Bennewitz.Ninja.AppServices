@@ -44,6 +44,7 @@ public sealed class AvaloniaDiagnosticsOptions
     /// Minimum Serilog level. Defaults to
     /// <see cref="LogEventLevel.Information"/>. Set lower for verbose
     /// diagnostic captures; set higher to reduce log volume in production.
+    /// A source that needs a minimum of its own gets it through <see cref="ConfigureLogger"/>.
     /// </summary>
     public LogEventLevel MinimumLevel { get; init; } = LogEventLevel.Information;
 
@@ -83,6 +84,13 @@ public sealed class AvaloniaDiagnosticsOptions
     /// ⭐ <b>The extension point for any in-app view of the log</b> — a live log window, a status
     /// strip, a crash reporter. This package ships no such window and binds no key: a host that
     /// wants a viewer attaches its sink here and decides for itself how the viewer is shown.
+    /// </para>
+    /// <para>
+    /// A minimum per source is set here too: <c>c =&gt; c.MinimumLevel.Override(source, level)</c>
+    /// gives one source a minimum above or below <see cref="MinimumLevel"/>, and the file records each
+    /// line at the level it was logged at. The source is the logger's <c>SourceContext</c>: the type's
+    /// full name for <c>ForContext&lt;T&gt;()</c>, or the category name of a logger bridged from
+    /// Microsoft.Extensions.Logging by Serilog.Extensions.Logging.
     /// </para>
     /// <para>
     /// ⚠ Runs inside <c>ConfigureLogging</c>, which runs before any logging exists, so an exception

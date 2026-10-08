@@ -21,6 +21,12 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
   `Emit` formats each event itself and passes every finished line on at Information, so it never
   drops one; `BucketedRollingFileSinkTests.Emit_WritesDebugAndVerbose_UnderTheirOwnLevel` measures
   that.
+- **A minimum per source is documented, not added.** DiffView found none the same day, in the copy
+  of this pipeline it consumes from ClaudeForge, which has no `ConfigureLogger`. Here
+  `ConfigureLogger` already takes Serilog's `MinimumLevel.Override`, which lowers one source below
+  `MinimumLevel` as readily as it raises one, so no option of this package's own was added.
+  `MinimumLevel` and `ConfigureLogger` now say so, and
+  `AvaloniaDiagnosticsHookTests.ConfigureLogger_can_lower_one_source_below_MinimumLevel` measures it.
 
 ## Drift from `plans/00001`
 

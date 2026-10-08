@@ -70,6 +70,32 @@ public sealed class AvaloniaDiagnosticsHookTests : IDisposable
     }
 
     [Fact]
+    public void ConfigureLogger_can_lower_one_source_below_MinimumLevel()
+    {
+        // A minimum per source needs no option of this package's own: Serilog's override, applied
+        // here, lets one category through at Debug while the rest of the log keeps Information, and
+        // the file records each line at the level it was logged at. A library's interaction lines at
+        // Debug, in an app whose log keeps Information, are the case that asked.
+        AvaloniaDiagnostics.ConfigureLogging(Options(configure: c =>
+            c.MinimumLevel.Override("Host.Interaction", LogEventLevel.Debug)));
+
+        Log.Information("the app's own line");
+        Log.ForContext(Constants.SourceContextPropertyName, "Host.Interaction").Debug("the user clicked");
+        Log.ForContext(Constants.SourceContextPropertyName, "Host.Other").Debug("another source");
+        Log.Debug("the app at debug");
+
+        string? path = AvaloniaDiagnostics.CurrentLogFilePath;
+        AvaloniaDiagnostics.ResetForTests(); // disposes the file sink, which flushes it
+        Assert.NotNull(path);
+        string written = File.ReadAllText(path);
+
+        Assert.Contains("[INF] the app's own line", written);
+        Assert.Contains("[DBG] the user clicked", written);
+        Assert.DoesNotContain("another source", written);
+        Assert.DoesNotContain("the app at debug", written);
+    }
+
+    [Fact]
     public void The_listener_receives_every_enqueued_event_even_without_the_event_file()
     {
         List<string> seen = [];
