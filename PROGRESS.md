@@ -27,6 +27,12 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
   `MinimumLevel` as readily as it raises one, so no option of this package's own was added.
   `MinimumLevel` and `ConfigureLogger` now say so, and
   `AvaloniaDiagnosticsHookTests.ConfigureLogger_can_lower_one_source_below_MinimumLevel` measures it.
+- **In the repository, the comments the move left stale are corrected.**
+  `AppServices.Abstractions.csproj` names `LayeringTests`; `MovedSourceSmokeTests` names the
+  layering guards as they now exist; `ShellLauncherWindowsTerminalTests` gives the
+  Microsoft.Testing.Platform filter, `--filter-trait "Category=…"`, which selects its one
+  diagnostic and three integration tests; `Parallelization.cs` names the static state the serial
+  run protects, since `SerilogAvaloniaSinkTests`, which it named, changes none.
 
 ## Drift from `plans/00001`
 
@@ -49,14 +55,9 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
 
 ## Next
 
-1. **Correct the comments the move left stale:** `AppServices.Abstractions.csproj` names
-   `AppServicesLayeringTests` (the class is `LayeringTests`); `MovedSourceSmokeTests` describes
-   the layering guards as still to come; `ShellLauncherWindowsTerminalTests` gives a VSTest
-   `TestCategory=` filter for traits named `Category`; `Parallelization.cs` says
-   `SerilogAvaloniaSinkTests` changes static state, which it does not.
-2. **Guard that every project under `src/` has a row in `LayeringTests.Tiers`.** Today a new
+1. **Guard that every project under `src/` has a row in `LayeringTests.Tiers`.** Today a new
    project with no row is outside the tier checks and BNAQ1003, and nothing fails.
-3. **Headless isolation per assembly** is unverified and waits for evidence before
+2. **Headless isolation per assembly** is unverified and waits for evidence before
    `[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]` is considered.
-4. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
+3. `LiveLogWindowSink` and its windows stay in OpenForge2k until they can ship together; nothing
    here is scheduled for them.
