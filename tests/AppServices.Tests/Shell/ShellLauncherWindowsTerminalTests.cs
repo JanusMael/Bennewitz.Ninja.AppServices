@@ -15,14 +15,14 @@ namespace AppServices.Tests.Shell;
 /// <summary>
 /// Tests for the Windows Terminal / PowerShell launch path in <see cref="ShellLauncher"/>.
 ///
-/// Two categories:
+/// Three kinds:
 /// 1. Unit tests — verify arg structure without launching anything.
 /// 2. Integration tests — actually launch a process; require Windows and are
 ///    skipped on CI.  Run them manually with:
-///      dotnet test --filter "TestCategory=Integration.WT"
+///      dotnet test --solution AppServices.slnx --filter-trait "Category=Integration.WT"
 /// 3. Diagnostic test — dumps environment info; useful when the launch silently
 ///    fails.  Run with:
-///      dotnet test --filter "TestCategory=Diagnostic.WT"
+///      dotnet test --solution AppServices.slnx --filter-trait "Category=Diagnostic.WT"
 /// </summary>
 public sealed class ShellLauncherWindowsTerminalTests
 {
@@ -117,7 +117,7 @@ public sealed class ShellLauncherWindowsTerminalTests
 
     // -----------------------------------------------------------------------
     // Diagnostic test — prints environment state without launching anything
-    // Run: dotnet test --filter "TestCategory=Diagnostic.WT"
+    // Run: dotnet test --solution AppServices.slnx --filter-trait "Category=Diagnostic.WT"
     // -----------------------------------------------------------------------
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class ShellLauncherWindowsTerminalTests
 
     // -----------------------------------------------------------------------
     // Integration tests — actually launch, verify via sentinel file
-    // Run: dotnet test --filter "TestCategory=Integration.WT"
+    // Run: dotnet test --solution AppServices.slnx --filter-trait "Category=Integration.WT"
     // Each test opens a terminal tab — it will close itself after writing the
     // sentinel file (no -NoExit).
     // -----------------------------------------------------------------------

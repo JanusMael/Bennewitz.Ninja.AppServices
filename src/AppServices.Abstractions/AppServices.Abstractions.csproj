@@ -11,5 +11,5 @@
 
   <!-- ⛔ THIS PROJECT HAS NO REFERENCES, AND THAT IS THE POINT. It is the package a test or a
        non-UI host consumes, so it must reach nothing. Adding any reference here is the change
-       that quietly undoes the split; AppServicesLayeringTests fails the build if one appears. -->
+       that quietly undoes the split; LayeringTests fails the build if one appears. -->
 </Project>

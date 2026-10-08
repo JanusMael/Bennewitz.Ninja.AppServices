@@ -10,7 +10,7 @@ namespace AppServices.Tests;
 /// rather than by the fact that it compiled.
 /// </summary>
 /// <remarks>
-/// ⚠ These are smoke tests, not the layering guards. Those are step 5 of plan 00002 and must scan
+/// ⚠ These are smoke tests, not the layering guards. Those are <c>LayeringTests</c>, which scan
 /// csproj XML as well as reflection: the compiler omits an unused reference from the assembly
 /// reference table, so a declared-but-unused bad reference is invisible to reflection alone.
 /// </remarks>
