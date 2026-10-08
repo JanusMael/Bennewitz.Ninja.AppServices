@@ -271,6 +271,9 @@ public sealed class BucketedRollingFileSink : ILogEventSink, IDisposable
         // a Serilog.Sinks.File default change.
         UTF8Encoding utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
+        // The inner minimum is not a filter. Emit formats each event itself, its level written into
+        // the line, and passes every finished line on at Information, so whatever the outer pipeline
+        // let through reaches the file, Debug and Verbose included.
         _currentLogger = new LoggerConfiguration()
                          .MinimumLevel.Information()
                          .WriteTo.File(
