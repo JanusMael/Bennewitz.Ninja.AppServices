@@ -449,10 +449,28 @@ public sealed class BucketedRollingFileSinkTests : IDisposable
         Assert.Equal(Path.Combine(_dir, "app-20260422-16.txt"), sink.CurrentFilePath);
     }
 
-    private static LogEvent MakeEvent(string message)
+    [Fact]
+    public void Emit_WritesDebugAndVerbose_UnderTheirOwnLevel()
+    {
+        // The inner file logger's Information minimum reads like a filter and is not one: Emit formats
+        // each event itself, its level included, and passes every finished line on at Information.
+        DateTime now = new(2026, 4, 22, 9, 0, 0, DateTimeKind.Utc); // bucket 08
+
+        using (BucketedRollingFileSink sink = new(_dir, clock: () => now))
+        {
+            sink.Emit(MakeEvent("a verbose line", LogEventLevel.Verbose));
+            sink.Emit(MakeEvent("a debug line", LogEventLevel.Debug));
+        } // dispose flushes
+
+        string written = File.ReadAllText(Path.Combine(_dir, "app-20260422-08.txt"));
+        Assert.Contains("[VRB] a verbose line", written);
+        Assert.Contains("[DBG] a debug line", written);
+    }
+
+    private static LogEvent MakeEvent(string message, LogEventLevel level = LogEventLevel.Information)
     {
         return new LogEvent(DateTimeOffset.UtcNow,
-            LogEventLevel.Information,
+            level,
             exception: null,
             new MessageTemplate(message, [new TextToken(message)]),
             []);

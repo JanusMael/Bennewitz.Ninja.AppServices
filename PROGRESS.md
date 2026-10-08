@@ -16,7 +16,11 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
 
 ## On `main`, not yet released
 
-Nothing yet: everything that was here shipped in `2026.4.1001`.
+- **`BucketedRollingFileSink`'s inner `.MinimumLevel.Information()` says it is not a filter.** It
+  reads like one, and DiffView nearly reported it on 2026-10-08 as dropping a host's `Debug` lines.
+  `Emit` formats each event itself and passes every finished line on at Information, so it never
+  drops one; `BucketedRollingFileSinkTests.Emit_WritesDebugAndVerbose_UnderTheirOwnLevel` measures
+  that.
 
 ## Drift from `plans/00001`
 
