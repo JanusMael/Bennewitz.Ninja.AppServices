@@ -9,4 +9,7 @@
 //
 // The headless Avalonia tests add a second reason: one session and one dispatcher, which must
 // not be driven by two tests at once. Headless/HeadlessSessionTests.cs guards that premise.
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+//
+// xunit.v3 4.x made CollectionBehavior's DisableTestParallelization obsolete as an error (CS0619);
+// Parallelization with ParallelMode.None is its replacement.
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]
