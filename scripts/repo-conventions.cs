@@ -38,6 +38,8 @@
 // Exit codes: 0 conforms, 1 findings, 2 usage or an error that stopped the run.
 
 using System.Diagnostics;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -126,7 +128,7 @@ else
 {
     try
     {
-        config = Config.Parse(configText, Baseline.Publishes(tree), findings);
+        config = Config.Parse(configText, Baseline.Pushed(tree), findings);
     }
     catch (JsonException error)
     {
@@ -144,6 +146,8 @@ return verb switch
 int Check()
 {
     Documentation.Check(tree, config, findings);
+    Families.CheckReadmes(tree, config, findings);
+    Workflows.CheckPublishing(tree, findings);
 
     if (offline)
     {
@@ -224,6 +228,8 @@ void CheckProjects(bool props)
     {
         Props.Check(projects, config, repoName, findings);
     }
+    Families.CheckReferences(localRoot, projects, config, findings);
+    Families.CheckPackages(projects, config, findings);
     Grants.Check(localRoot, tree, projects, findings);
 }
 
@@ -294,7 +300,7 @@ int Apply()
     ];
 
     Dictionary<string, long> existing = Rulesets.Existing(api);
-    foreach (JsonObject ruleset in Baseline.Rulesets(config.RequiredChecks))
+    foreach (JsonObject ruleset in Baseline.Rulesets(config.RequiredChecks, config.Families is not null))
     {
         string name = ruleset["name"]!.GetValue<string>();
         requests.Add(existing.TryGetValue(name, out long id)
@@ -390,17 +396,25 @@ static class Baseline
             ? "which every repository that publishes to nuget.org carries: packages.push names an id"
             : "which every family repository carries";
 
-    /// <summary>Whether <c>packages.push</c> names at least one id, blank lines and comments aside.</summary>
-    public static bool Publishes(Tree tree) =>
-        (tree.Read("packages.push") ?? "")
+    /// <summary>Whether <c>packages.push</c> names at least one id.</summary>
+    public static bool Publishes(Tree tree) => Pushed(tree).Count > 0;
+
+    /// <summary>The ids <c>packages.push</c> names, blank lines and comments aside.</summary>
+    public static IReadOnlyList<string> Pushed(Tree tree) =>
+        [.. (tree.Read("packages.push") ?? "")
             .Split('\n')
             .Select(line => line.Trim())
-            .Any(line => line.Length > 0 && !line.StartsWith('#'));
+            .Where(line => line.Length > 0 && !line.StartsWith('#'))];
 
     /// <summary>GitHub's built-in repository-admin role.</summary>
     public const int AdminRoleId = 5;
 
-    public static IEnumerable<JsonObject> Rulesets(IReadOnlyList<string> requiredChecks)
+    /// <param name="families">
+    /// Whether repository.json declares families (plans/00009). Their tags, <c>&lt;family&gt;/v…</c>, are
+    /// protected as well; only then, because the include list is compared exactly, and a second
+    /// pattern in every repository would fail each single-family one on its next sync.
+    /// </param>
+    public static IEnumerable<JsonObject> Rulesets(IReadOnlyList<string> requiredChecks, bool families)
     {
         // ⛔ Built with the constructor, never a collection expression or Add(JsonObject): both bind
         // to the generic Add<T>, which is not trim-safe, and a file-based app is compiled trimmed.
@@ -435,11 +449,13 @@ static class Baseline
             });
         }
 
-        yield return Ruleset("main", "branch", "~DEFAULT_BRANCH", mainRules);
-        yield return Ruleset("release-tags", "tag", "refs/tags/v*", new JsonArray(Rule("creation"), Rule("update"), Rule("deletion")));
+        yield return Ruleset("main", "branch", ["~DEFAULT_BRANCH"], mainRules);
+        // ⚠ A ruleset's `*` stops at a slash, so `refs/tags/v*` does not reach a family's tag.
+        yield return Ruleset("release-tags", "tag", families ? ["refs/tags/v*", "refs/tags/*/v*"] : ["refs/tags/v*"],
+            new JsonArray(Rule("creation"), Rule("update"), Rule("deletion")));
     }
 
-    private static JsonObject Ruleset(string name, string target, string include, JsonArray rules) => new()
+    private static JsonObject Ruleset(string name, string target, string[] include, JsonArray rules) => new()
     {
         ["name"] = name,
         ["target"] = target,
@@ -454,7 +470,7 @@ static class Baseline
         }),
         ["conditions"] = new JsonObject
         {
-            ["ref_name"] = new JsonObject { ["include"] = Json.Array([include]), ["exclude"] = new JsonArray() },
+            ["ref_name"] = new JsonObject { ["include"] = Json.Array(include), ["exclude"] = new JsonArray() },
         },
         ["rules"] = rules,
     };
@@ -471,10 +487,14 @@ sealed record Config(
     IReadOnlyList<string> Content,
     IReadOnlyDictionary<string, string> Undocumented,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> PropsExempt,
-    bool TrimmingRequired)
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? Families)
 {
-    public static Config Parse(string text, bool publishes, List<Finding> findings)
+    // A family's stem becomes part of its tags, so it is what a ref name may hold, lower-cased.
+    private static readonly Regex FamilyStem = new(@"^[a-z0-9]+(?:[._-][a-z0-9]+)*$");
+
+    public static Config Parse(string text, IReadOnlyList<string> pushed, List<Finding> findings)
     {
+        bool publishes = pushed.Count > 0;
         JsonObject json = JsonNode.Parse(text)?.AsObject() ?? throw new JsonException("the document is empty.");
 
         string description = json["description"]?.GetValue<string>() ?? "";
@@ -517,11 +537,15 @@ sealed record Config(
             propsExempt[project] = exempt;
         }
 
-        string trimming = json["trimming"]?.GetValue<string>() ?? "";
-        if (trimming is not ("" or "required"))
+        // Retired by plans/00008: a repository trims when its projects say so, and two sources of
+        // truth could disagree. A NOTE, so a repository that still carries it does not go red.
+        if (json.ContainsKey("trimming"))
         {
-            findings.Add(Finding.Fail("repository.json", $"\"trimming\" is \"{trimming}\"; it is \"required\", or absent while a repository works towards it."));
+            findings.Add(Finding.Note("repository.json", "\"trimming\" is no longer read; remove it. A repository trims when one of its projects sets a trimming property."));
         }
+
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? families = json["families"] is { } declared ? ParseFamilies(declared, pushed, findings) : null;
+        CheckBareTags(json["bareTags"], families, findings);
 
         return new Config(
             description,
@@ -531,7 +555,88 @@ sealed record Config(
             [.. Strings(json["content"]).Select(p => p.TrimEnd('/') + "/")],
             undocumented,
             propsExempt,
-            trimming == "required");
+            families);
+    }
+
+    /// <summary>
+    /// <c>"bareTags": "&lt;stem&gt;"</c> (plans/00011 decision 7): the family whose releases a grown
+    /// repository's bare <c>v…</c> tags were, before it had families. The release counts them as that
+    /// family's when it finds the previous tag its notes start from, so it must name a declared family.
+    /// </summary>
+    private static void CheckBareTags(JsonNode? node, IReadOnlyDictionary<string, IReadOnlyList<string>>? families, List<Finding> findings)
+    {
+        if (node is null)
+        {
+            return;
+        }
+        if (families is null)
+        {
+            findings.Add(Finding.Fail("families", "\"bareTags\" names the family whose releases the bare v… tags were, but there are no families: every release is a bare tag's. Remove it."));
+            return;
+        }
+        string stem = node is JsonValue value && value.TryGetValue(out string? text) ? text.Trim().ToLowerInvariant() : "";
+        if (!families.ContainsKey(stem))
+        {
+            findings.Add(Finding.Fail("families", $"\"bareTags\" is {node.ToJsonString()}, which is not a declared family; the families are {string.Join(", ", families.Keys)}."));
+        }
+    }
+
+    /// <summary>
+    /// <c>"families": { "&lt;stem&gt;": ["&lt;id&gt;", …] }</c> (plans/00009): which of the ids
+    /// <c>packages.push</c> names release together, each family from its own tags. Keyed by the
+    /// lower-cased stem, as its tags spell it.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ The families' ids are exactly <c>packages.push</c>'s. One that no family names would never be
+    /// released, and one that <c>packages.push</c> does not name would be released but never checked.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseFamilies(JsonNode declared, IReadOnlyList<string> pushed, List<Finding> findings)
+    {
+        Dictionary<string, IReadOnlyList<string>> families = new(StringComparer.Ordinal);
+        if (declared is not JsonObject entries || entries.Count == 0)
+        {
+            findings.Add(Finding.Fail("families", "\"families\" must map each family's stem to its package ids, or be left out."));
+            return families;
+        }
+
+        foreach ((string stem, JsonNode? ids) in entries)
+        {
+            string key = stem.ToLowerInvariant();
+            string[] list = Strings(ids is JsonArray ? ids : null);
+            if (!FamilyStem.IsMatch(key))
+            {
+                findings.Add(Finding.Fail("families", $"The family \"{stem}\" cannot be part of a tag: letters and digits, separated by single '.', '-' or '_'."));
+            }
+            else if (families.ContainsKey(key))
+            {
+                findings.Add(Finding.Fail("families", $"The family \"{stem}\" is declared twice; its tags are lower-case, so case does not tell two apart."));
+            }
+            else if (list.Length == 0)
+            {
+                findings.Add(Finding.Fail("families", $"The family \"{stem}\" lists no package ids."));
+            }
+            else
+            {
+                families[key] = list;
+            }
+        }
+
+        string[] named = [.. families.Values.SelectMany(ids => ids)];
+        foreach (IGrouping<string, string> twice in named.GroupBy(id => id, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+        {
+            findings.Add(Finding.Fail("families", $"{twice.Key} is in more than one family. Each id releases with one."));
+        }
+        string[] unreleased = [.. pushed.Except(named, StringComparer.OrdinalIgnoreCase)];
+        if (unreleased.Length > 0)
+        {
+            findings.Add(Finding.Fail("families", $"packages.push names {string.Join(", ", unreleased)}, which no family does, so no release would publish it. Add each to its family."));
+        }
+        string[] undeclared = [.. named.Except(pushed, StringComparer.OrdinalIgnoreCase)];
+        if (undeclared.Length > 0)
+        {
+            findings.Add(Finding.Fail("families", $"The families name {string.Join(", ", undeclared)}, which packages.push does not. packages.push says what publishes; a family only says what releases with what."));
+        }
+        return families;
     }
 
     private static string[] Strings(JsonNode? node) =>
@@ -653,6 +758,41 @@ static class Workflows
         }
     }
 
+    /// <summary>
+    /// A release publishes the ids <c>packages.push</c> names, each by its exact file, never a
+    /// <c>*.nupkg</c> glob: a glob publishes whatever the build happened to produce, and a nuget.org
+    /// version is permanent. A FAIL at every depth, so the release preflight stops before the push.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Read per workflow, not per step. A workflow that publishes, by <c>nuget push</c> or by a GitHub
+    /// release, may not glob a package anywhere, so a glob in a folded or continued command line, or
+    /// in an action's <c>files:</c>, is caught too. A workflow that publishes nothing may: CI listing
+    /// <c>./artifacts/*.nupkg</c> ships nothing. Comment lines are skipped.
+    /// </remarks>
+    public static void CheckPublishing(Tree tree, List<Finding> findings)
+    {
+        foreach (string path in tree.Files.Where(IsWorkflow))
+        {
+            string[] lines = (tree.Read(path) ?? "").Split('\n');
+            if (!lines.Any(line => !IsComment(line) && Publishes.IsMatch(line)))
+            {
+                continue;
+            }
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (!IsComment(lines[i]) && PackageGlob.Match(lines[i]) is { Success: true } glob)
+                {
+                    findings.Add(Finding.Fail("release", $"{path}:{i + 1} publishes a package glob, `{glob.Value}`. A release publishes the ids packages.push names, each by its exact file; a glob publishes whatever the build produced, and a nuget.org version is permanent."));
+                }
+            }
+        }
+    }
+
+    private static readonly Regex Publishes = new(@"\bnuget\s+push\b|\bgh\s+release\s+(create|upload)\b|action-gh-release");
+    private static readonly Regex PackageGlob = new(@"[^\s""'()]*[*?][^\s""'()]*\.s?nupkg\b");
+
+    private static bool IsComment(string line) => line.TrimStart().StartsWith('#');
+
     private static bool IsWorkflow(string path) =>
         path.StartsWith(".github/workflows/", StringComparison.Ordinal) &&
         (path.EndsWith(".yml", StringComparison.Ordinal) || path.EndsWith(".yaml", StringComparison.Ordinal));
@@ -726,7 +866,7 @@ static class Rulesets
     {
         Dictionary<string, long> existing = Existing(api);
 
-        foreach (JsonObject wanted in Baseline.Rulesets(config?.RequiredChecks ?? []))
+        foreach (JsonObject wanted in Baseline.Rulesets(config?.RequiredChecks ?? [], config?.Families is not null))
         {
             string name = wanted["name"]!.GetValue<string>();
             if (!existing.TryGetValue(name, out long id))
@@ -878,7 +1018,7 @@ static class Settings
 /// fail on that property locally.
 /// </remarks>
 /// <summary>One project as MSBuild evaluated it, the way CI builds it.</summary>
-sealed record Evaluated(string Path, string Name, JsonObject Properties, JsonNode? Items, string Role)
+sealed record Evaluated(string Path, string Name, JsonObject Properties, JsonNode? Items, string Role, JsonObject? Debug = null)
 {
     public string Value(string property) => Properties[property] is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
 
@@ -893,12 +1033,16 @@ static class Projects
         "ManagePackageVersionsCentrally", "GenerateAutoVersionedAssemblyInfo", "AssemblyCompany",
         "IsContinuousIntegration", "IsPackable", "OutputType", "IsTestProject", "PackAsTool",
         "IsRoslynComponent", "PackageType", "Authors", "PackageLicenseExpression", "RepositoryUrl",
-        "PackageReadmeFile", "DebugType", "IsTrimmable", "EnableTrimAnalyzer",
-        "AssemblyName", Grants.OptOut,
+        "PackageReadmeFile", "DebugType", .. Trimming.Properties,
+        "AssemblyName", Grants.OptOut, "PackageId", "FamilyReadme", "AssemblyProduct", "ProjectAssetsFile",
     ];
 
+    // What a Debug build emits as symbols: read from a second evaluation, since every other property
+    // is read as CI builds, in Release. Two names, so msbuild answers in JSON.
+    private static readonly string[] DebugNames = ["DebugType", "OutputType"];
+
     private static readonly string[] ItemTypes =
-        ["PackageReference", "PackageVersion", "Compile", "InternalsVisibleTo", "AssemblyAttribute"];
+        ["PackageReference", "PackageVersion", "Compile", "InternalsVisibleTo", "AssemblyAttribute", "ProjectReference"];
 
     private static readonly Dictionary<string, string> Ci = new(StringComparer.Ordinal) { ["GITHUB_ACTIONS"] = "true" };
 
@@ -971,7 +1115,15 @@ static class Projects
             {
                 items = PerFramework(root, project, name, frameworks, items, findings);
             }
-            evaluated.Add(new Evaluated(project, name, properties, items, Role(properties)));
+
+            string[] debugArguments = ["msbuild", project, "-p:Configuration=Debug", .. DebugNames.Select(n => "-getProperty:" + n)];
+            (int debugExit, string debugOutput) = Shell.Run("dotnet", root, null, Ci, debugArguments);
+            if ((debugExit == 0 ? Parse(debugOutput) : null)?["Properties"] is not JsonObject debug)
+            {
+                findings.Add(Finding.Fail("props", $"{name} could not be evaluated in Debug: {Tail(debugOutput)}"));
+                continue;
+            }
+            evaluated.Add(new Evaluated(project, name, properties, items, Role(properties), debug));
         }
         return evaluated;
     }
@@ -980,7 +1132,7 @@ static class Projects
     // project's own Compile items, nor any item an ItemGroup conditions on a framework: a grant declared
     // in its source passed unseen. So the items the grant checks read come from each framework's own
     // evaluation, combined.
-    private static readonly string[] PerFrameworkTypes = ["Compile", "InternalsVisibleTo", "AssemblyAttribute"];
+    private static readonly string[] PerFrameworkTypes = ["Compile", "InternalsVisibleTo", "AssemblyAttribute", "ProjectReference"];
 
     private static JsonNode? PerFramework(string root, string project, string name, string frameworks, JsonNode? outer, List<Finding> findings)
     {
@@ -1060,6 +1212,379 @@ static class Projects
     }
 }
 
+/// <summary>
+/// Whether a repository trims (plans/00008): when any of its projects, of any role, evaluates one of
+/// <see cref="Properties"/> to true. An app published trimmed or natively trims its own libraries too.
+/// </summary>
+/// <remarks>
+/// ⛔ One predicate for both sides of the enforcement: the repository's own libraries here, and the
+/// <c>Bennewitz.Ninja.*</c> packages in its restore graph. Two predicates could disagree about whether
+/// the same repository trims.
+/// </remarks>
+static class Trimming
+{
+    public static readonly string[] Properties = ["IsTrimmable", "EnableTrimAnalyzer", "PublishTrimmed", "PublishAot"];
+
+    public static bool Trims(IReadOnlyList<Evaluated> projects) => Reasons(projects).Count > 0;
+
+    /// <summary>Each project that makes the repository trim, with the properties that do; empty when it does not.</summary>
+    public static IReadOnlyList<string> Reasons(IReadOnlyList<Evaluated> projects) =>
+        [.. projects
+            .Select(e => (e.Name, Set: Properties.Where(p => e.Value(p) == "true").ToArray()))
+            .Where(e => e.Set.Length > 0)
+            .Select(e => $"{e.Name}: {string.Join(", ", e.Set)}")];
+
+    /// <summary>The reasons for a finding: the first three, and how many more.</summary>
+    public static string Describe(IReadOnlyList<string> reasons) =>
+        string.Join("; ", reasons.Take(3)) + (reasons.Count > 3 ? $"; and {reasons.Count - 3} more" : "");
+}
+
+/// <summary>
+/// The other side of the trimming enforcement (plans/00008 step 3): in a repository that trims, each
+/// <c>Bennewitz.Ninja.*</c> package a library or an app takes, transitive ones included, carries
+/// <c>[assembly: AssemblyMetadata("IsTrimmable", "True")]</c> in every assembly it adds to the build.
+/// </summary>
+/// <remarks>
+/// ⛔ <c>TrimMode=partial</c> trims only the assemblies that carry it, so an unmarked family package
+/// is silently left whole and its trim warnings are never raised. Read from the project's
+/// <c>project.assets.json</c> and each assembly's metadata, loading nothing. A package that adds no
+/// assembly, as an analyzer or an MSBuild package does, has nothing to trim.
+/// </remarks>
+static class TrimmablePackages
+{
+    private const string Prefix = "Bennewitz.Ninja.";
+
+    // Each assembly is read once, however many projects take its package.
+    private static readonly Dictionary<string, bool?> Marked = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The problem with a project's restore graph, or null when each family package in it is trimmable.</summary>
+    public static string? Problem(string assetsFile, IReadOnlyList<string> trimmedBy)
+    {
+        string trims = $"and the repository trims ({Trimming.Describe(trimmedBy)})";
+        JsonObject? assets = null;
+        try
+        {
+            assets = File.Exists(assetsFile) ? JsonNode.Parse(File.ReadAllText(assetsFile)) as JsonObject : null;
+        }
+        catch (JsonException)
+        {
+        }
+        if (assets is null)
+        {
+            return $"has no readable restore graph{(assetsFile.Length > 0 ? " at " + assetsFile : "")}, so its {Prefix}* packages cannot be checked, {trims}.";
+        }
+
+        string folder = (assets["packageFolders"] as JsonObject)?.Select(f => f.Key).FirstOrDefault() ?? "";
+        JsonObject libraries = assets["libraries"] as JsonObject ?? new JsonObject();
+        SortedSet<string> unmarked = new(StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> unread = new(StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, JsonNode?> target in assets["targets"] as JsonObject ?? new JsonObject())
+        {
+            foreach (KeyValuePair<string, JsonNode?> package in target.Value as JsonObject ?? new JsonObject())
+            {
+                if (!package.Key.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) || Text(package.Value?["type"]) != "package")
+                {
+                    continue;
+                }
+                string path = Text(libraries[package.Key]?["path"]);
+                string name = package.Key.Replace('/', ' ');
+                foreach (KeyValuePair<string, JsonNode?> asset in package.Value?["runtime"] as JsonObject ?? new JsonObject())
+                {
+                    // An empty folder's placeholder: the package adds no assembly for this framework.
+                    if (Path.GetFileName(asset.Key) == "_._")
+                    {
+                        continue;
+                    }
+                    switch (IsMarked(Path.Combine(folder, path, asset.Key)))
+                    {
+                        case false:
+                            unmarked.Add(name);
+                            break;
+                        case null:
+                            unread.Add($"{name} ({asset.Key})");
+                            break;
+                    }
+                }
+            }
+        }
+
+        if (unmarked.Count == 0 && unread.Count == 0)
+        {
+            return null;
+        }
+        List<string> problems = [];
+        if (unmarked.Count > 0)
+        {
+            problems.Add($"takes {string.Join(", ", unmarked)}, without IsTrimmable");
+        }
+        if (unread.Count > 0)
+        {
+            problems.Add($"takes {string.Join(", ", unread)}, whose assembly could not be read");
+        }
+        return $"{string.Join("; ", problems)}, {trims}: every {Prefix}* package a library or an app takes, transitive ones included, must be trimmable. Take a version that is.";
+    }
+
+    /// <summary>Whether the assembly carries IsTrimmable; null when it cannot be read.</summary>
+    private static bool? IsMarked(string file)
+    {
+        if (Marked.TryGetValue(file, out bool? known))
+        {
+            return known;
+        }
+
+        bool? marked = null;
+        try
+        {
+            using FileStream stream = File.OpenRead(file);
+            using PEReader pe = new(stream);
+            if (pe.HasMetadata)
+            {
+                MetadataReader reader = pe.GetMetadataReader();
+                marked = false;
+                foreach (CustomAttributeHandle handle in reader.GetAssemblyDefinition().GetCustomAttributes())
+                {
+                    CustomAttribute attribute = reader.GetCustomAttribute(handle);
+                    if (!IsAssemblyMetadata(reader, attribute.Constructor))
+                    {
+                        continue;
+                    }
+                    // The attribute's blob: a prolog of 1, then its two string arguments, key and value.
+                    BlobReader value = reader.GetBlobReader(attribute.Value);
+                    if (value.ReadUInt16() == 1 && value.ReadSerializedString() == "IsTrimmable")
+                    {
+                        marked = string.Equals(value.ReadSerializedString(), "True", StringComparison.OrdinalIgnoreCase);
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or BadImageFormatException)
+        {
+        }
+        Marked[file] = marked;
+        return marked;
+    }
+
+    private static bool IsAssemblyMetadata(MetadataReader reader, EntityHandle constructor)
+    {
+        if (constructor.Kind != HandleKind.MemberReference)
+        {
+            return false;
+        }
+        EntityHandle parent = reader.GetMemberReference((MemberReferenceHandle)constructor).Parent;
+        if (parent.Kind != HandleKind.TypeReference)
+        {
+            return false;
+        }
+        TypeReference type = reader.GetTypeReference((TypeReferenceHandle)parent);
+        return reader.StringComparer.Equals(type.Name, "AssemblyMetadataAttribute")
+            && reader.StringComparer.Equals(type.Namespace, "System.Reflection");
+    }
+
+    private static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
+}
+
+/// <summary>
+/// Package families (plans/00009): a repository that declares <c>families</c> in repository.json
+/// releases each one alone, at its own version.
+/// </summary>
+static class Families
+{
+    /// <summary>
+    /// A packable project never references a packable project of another family. Across families the
+    /// reference is a <c>PackageReference</c> to a published version.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ A family's release packs at that family's version, so a <c>ProjectReference</c> across families
+    /// would pack a dependency on a version of the other family that need not exist. Each side is read
+    /// by its evaluated <c>PackageId</c>, never its file name. A test project, a tool or a demo that
+    /// packs nothing may reference anything.
+    /// </remarks>
+    public static void CheckReferences(string root, IReadOnlyList<Evaluated> projects, Config? config, List<Finding> findings)
+    {
+        if (config?.Families is not { Count: > 0 } families)
+        {
+            return;
+        }
+
+        Dictionary<string, string> familyOf = ById(families);
+        Dictionary<string, Evaluated> byPath = new(StringComparer.OrdinalIgnoreCase);
+        foreach (Evaluated project in projects)
+        {
+            byPath[Full(Path.Combine(root, project.Path))] = project;
+        }
+
+        foreach (Evaluated project in projects)
+        {
+            if (FamilyOf(project, familyOf) is not { } family)
+            {
+                continue;
+            }
+            foreach (JsonNode reference in project.Item("ProjectReference"))
+            {
+                string path = reference["FullPath"] is JsonValue value && value.TryGetValue(out string? full) ? full : "";
+                if (path.Length == 0 || !byPath.TryGetValue(Full(path), out Evaluated? target))
+                {
+                    continue;
+                }
+                if (FamilyOf(target, familyOf) is { } other && other != family)
+                {
+                    findings.Add(Finding.Fail("families", $"{project.Name}, of the {family} family, references {target.Name}, of the {other} family, as a project. Reference {target.Value("PackageId")} as a package at a published version: {family}'s release packs at {family}'s version, which {other} need not have."));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Each family's README is <c>docs/&lt;stem&gt;.md</c> (plans/00011): it must be there, and link only
+    /// absolutely. It is packed as the README of each of the family's packages, a page on nuget.org,
+    /// where a relative link resolves against nuget.org and goes nowhere.
+    /// </summary>
+    /// <remarks>Read from the tree, so <c>check --repo</c> reaches it as well as a checkout.</remarks>
+    public static void CheckReadmes(Tree tree, Config? config, List<Finding> findings)
+    {
+        if (config?.Families is not { Count: > 0 } families)
+        {
+            return;
+        }
+
+        foreach (string family in families.Keys)
+        {
+            string path = Readme(family);
+            if (tree.Read(path) is not { } text || text.Trim().Length == 0)
+            {
+                findings.Add(Finding.Fail("families", $"The {family} family has no {path}. It is the family's README, packed as README.md into each of its packages: the page nuget.org shows for them."));
+                continue;
+            }
+            foreach ((int line, string target) in Links.Relative(text))
+            {
+                findings.Add(Finding.Fail("families", $"{path}:{line} links to \"{target}\", relatively. It is the {family} family's README on nuget.org, where a relative link goes nowhere: link absolutely, or to an #anchor on the page."));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Each of a family's packages names the family's README in <c>FamilyReadme</c>, which the root
+    /// props pack as its README.md, and carries the family's <c>AssemblyProduct</c> (plans/00011).
+    /// </summary>
+    /// <remarks>
+    /// ⛔ A package that names no README packs the repository's, so its nuget.org page is the wrong
+    /// one, and nothing else fails. The product is stamped into every assembly a version ships,
+    /// permanently. It is the stem without regard to case or separators: <c>XamlQuality</c> for
+    /// <c>xamlquality</c>, <c>AppServices</c> for <c>app-services</c>.
+    /// </remarks>
+    public static void CheckPackages(IReadOnlyList<Evaluated> projects, Config? config, List<Finding> findings)
+    {
+        if (config?.Families is not { Count: > 0 } families)
+        {
+            return;
+        }
+
+        Dictionary<string, string> familyOf = ById(families);
+        foreach (Evaluated project in projects)
+        {
+            if (FamilyOf(project, familyOf) is not { } family)
+            {
+                continue;
+            }
+
+            string readme = project.Value("FamilyReadme").Trim().Replace('\\', '/');
+            if (readme.Length == 0)
+            {
+                findings.Add(Finding.Fail("families", $"{project.Name}, of the {family} family, sets no FamilyReadme, so it packs the repository's README.md. Set it to {Readme(family)}, the family's."));
+            }
+            else if (readme != Readme(family))
+            {
+                findings.Add(Finding.Fail("families", $"{project.Name}, of the {family} family, has FamilyReadme \"{readme}\"; the family's is {Readme(family)}."));
+            }
+
+            string product = project.Value("AssemblyProduct");
+            if (!Bare(product).Equals(Bare(family), StringComparison.OrdinalIgnoreCase))
+            {
+                findings.Add(Finding.Fail("families", $"{project.Name}, of the {family} family, has AssemblyProduct \"{product}\"; a family's packages carry the family's, {family} without regard to case or separators, stamped into every assembly they ship."));
+            }
+        }
+    }
+
+    public static string Readme(string family) => $"docs/{family}.md";
+
+    private static string Bare(string name) => string.Concat(name.Where(char.IsLetterOrDigit));
+
+    private static Dictionary<string, string> ById(IReadOnlyDictionary<string, IReadOnlyList<string>> families)
+    {
+        Dictionary<string, string> familyOf = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string family, IReadOnlyList<string> ids) in families)
+        {
+            foreach (string id in ids)
+            {
+                familyOf.TryAdd(id, family);
+            }
+        }
+        return familyOf;
+    }
+
+    private static string? FamilyOf(Evaluated project, Dictionary<string, string> familyOf) =>
+        project.Value("IsPackable") == "true" && familyOf.TryGetValue(project.Value("PackageId"), out string? family) ? family : null;
+
+    private static string Full(string path) => Path.GetFullPath(path.Replace('\\', '/')).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+}
+
+/// <summary>
+/// The relative links in a markdown document, each with its line: inline links and images,
+/// reference definitions (<c>[x]: target</c>), and HTML <c>href</c> and <c>src</c> attributes.
+/// </summary>
+/// <remarks>
+/// ⛔ Not inside fenced code or an inline code span: a link shown there as an example is text. A
+/// target with a scheme (<c>https:</c>, <c>mailto:</c>), one starting <c>//</c>, and an anchor within
+/// the page (<c>#…</c>) are absolute.
+/// </remarks>
+static class Links
+{
+    private static readonly Regex Fence = new(@"^ {0,3}(`{3,}|~{3,})");
+    private static readonly Regex CodeSpan = new(@"(`+).+?\1");
+    private static readonly Regex Inline = new(@"\]\(\s*(<[^>]*>|[^\s)]+)");
+    private static readonly Regex Definition = new(@"^ {0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)");
+    private static readonly Regex Attribute = new(@"\b(?:href|src)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^\s""'>]+))", RegexOptions.IgnoreCase);
+    private static readonly Regex Absolute = new(@"^(?:[A-Za-z][A-Za-z0-9+.-]*:|//|#)");
+
+    public static IEnumerable<(int Line, string Target)> Relative(string markdown)
+    {
+        string[] lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        string? fence = null;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            Match opening = Fence.Match(lines[i]);
+            if (fence is not null)
+            {
+                // A fence closes on a line of the same character, at least as long, and nothing else.
+                if (opening.Success && opening.Groups[1].Value[0] == fence[0] && opening.Groups[1].Length >= fence.Length
+                    && lines[i].Trim().Trim(fence[0]).Length == 0)
+                {
+                    fence = null;
+                }
+                continue;
+            }
+            if (opening.Success)
+            {
+                fence = opening.Groups[1].Value;
+                continue;
+            }
+
+            string text = CodeSpan.Replace(lines[i], "");
+            IEnumerable<string> targets = Inline.Matches(text).Select(m => m.Groups[1].Value)
+                .Concat(Definition.Matches(text).Select(m => m.Groups[1].Value))
+                .Concat(Attribute.Matches(text).Select(m => m.Groups[1].Value + m.Groups[2].Value + m.Groups[3].Value));
+            foreach (string target in targets.Select(t => t.Trim('<', '>').Trim()))
+            {
+                if (target.Length > 0 && !Absolute.IsMatch(target))
+                {
+                    yield return (i + 1, target);
+                }
+            }
+        }
+    }
+}
+
 static class Props
 {
     public const string AutoVersioningFloor = "2026.3.916";
@@ -1073,6 +1598,7 @@ static class Props
         }
 
         IReadOnlyDictionary<string, string> none = new Dictionary<string, string>();
+        IReadOnlyList<string> trimmedBy = Trimming.Reasons(projects);
         List<string> roles = [];
         foreach (Evaluated evaluated in projects)
         {
@@ -1082,7 +1608,7 @@ static class Props
             roles.Add($"{name} ({role})");
             IReadOnlyDictionary<string, string> exempt = config?.PropsExempt.GetValueOrDefault(name) ?? none;
 
-            foreach ((string rule, string? problem) in Rules(properties, evaluated.Items, role, repoName))
+            foreach ((string rule, string? problem) in Rules(properties, evaluated.Debug, evaluated.Items, role, repoName, trimmedBy))
             {
                 if (problem is null)
                 {
@@ -1096,22 +1622,14 @@ static class Props
                     findings.Add(Finding.Fail("props", $"{name} ({role}): {problem}"));
                 }
             }
-
-            if (role == "library" && !(Value(properties, "IsTrimmable") == "true" && Value(properties, "EnableTrimAnalyzer") == "true")
-                && !exempt.ContainsKey("Trimming"))
-            {
-                string message = $"{name} is not yet trimmable: it needs IsTrimmable and EnableTrimAnalyzer, as the template's src/Directory.Build.props sets them.";
-                findings.Add(config?.TrimmingRequired == true
-                    ? Finding.Fail("props", message + " repository.json requires trimming.")
-                    : Finding.Note("props", message + " repository.json's \"trimming\": \"required\" makes this fail."));
-            }
         }
 
         findings.Add(Finding.Note("props", $"{projects.Count} projects evaluated after a restore, as CI evaluates them: {string.Join(", ", roles)}."));
     }
 
     /// <summary>Every rule for this role, each with its problem, or null where the project meets it.</summary>
-    private static IEnumerable<(string Rule, string? Problem)> Rules(JsonObject p, JsonNode? items, string role, string? repoName)
+    private static IEnumerable<(string Rule, string? Problem)> Rules(JsonObject p, JsonObject? debug, JsonNode? items, string role, string? repoName,
+        IReadOnlyList<string> trimmedBy)
     {
         string frameworks = Value(p, "TargetFrameworks") is { Length: > 0 } many ? many : Value(p, "TargetFramework");
         string[] targets = frameworks.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -1138,6 +1656,45 @@ static class Props
             : !AtLeast(version, AutoVersioningFloor) ? $"references {AutoVersioning} {version}; the family's floor is {AutoVersioningFloor}."
             : null);
 
+        // ⭐ Symbols in both configurations, for every project that compiles: a Debug build writes a
+        // .pdb beside the assembly or into it, for stepping through the source; a Release build embeds
+        // it, so whatever ships, a package, a single-file app or a test run's binaries, carries its own.
+        // A template package compiles nothing.
+        //
+        // ⚠ DebugType alone decides it. DebugSymbols evaluates to false in Release by default, and the
+        // PDB is embedded all the same (measured on SDK 10.0.401), so a rule reading it would fail
+        // every correct project.
+        if (role != "template")
+        {
+            string releaseType = Value(p, "DebugType");
+            yield return ("DebugType", releaseType == "embedded"
+                ? null
+                : $"builds Release with DebugType \"{releaseType}\"; the family embeds symbols in Release: DebugType \"embedded\".");
+
+            string debugType = debug is null ? "" : Value(debug, "DebugType");
+            yield return ("DebugSymbols", debug is null || debugType is "portable" or "embedded"
+                ? null
+                : $"builds Debug with DebugType \"{debugType}\", so no symbols; the family's are \"portable\" (a .pdb beside the assembly) or \"embedded\".");
+        }
+
+        // Libraries only (plans/00008): a tool runs on the installed framework, an app's trimming is
+        // decided by its kind. A repository that does not trim holds no library to it, so an
+        // exemption there is stale too.
+        if (role == "library")
+        {
+            yield return ("Trimming", trimmedBy.Count == 0 || (Value(p, "IsTrimmable") == "true" && Value(p, "EnableTrimAnalyzer") == "true")
+                ? null
+                : $"is not trimmable, and the repository trims ({Trimming.Describe(trimmedBy)}): every library needs IsTrimmable and EnableTrimAnalyzer, as the template's src/Directory.Build.props sets them.");
+        }
+
+        // The other side (plans/00008 step 3): what a library or an app takes from the family is trimmed
+        // with it. A test runs untrimmed, a tool on the installed framework and an analyzer in the
+        // compiler, so their restore graphs owe nothing.
+        if (role is "library" or "app")
+        {
+            yield return ("TrimmablePackages", trimmedBy.Count == 0 ? null : TrimmablePackages.Problem(Value(p, "ProjectAssetsFile"), trimmedBy));
+        }
+
         if (role is not ("library" or "tool"))
         {
             yield break;
@@ -1158,7 +1715,6 @@ static class Props
         yield return ("PackageReadmeFile", Value(p, "PackageReadmeFile").Trim().Length > 0
             ? null
             : "sets no PackageReadmeFile, so nuget.org shows the package without a README.");
-        yield return Expect(p, "DebugType", "embedded");
     }
 
     private static (string Rule, string? Problem) Expect(JsonObject p, string name, string wanted)

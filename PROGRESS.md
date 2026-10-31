@@ -38,6 +38,18 @@ All five ids — `Bennewitz.Ninja.AppServices`, `.Abstractions`, `.Logging`, `.A
   `LayeringTests.Every_project_under_src_has_a_tier` fails for a project with no row in
   `LayeringTests.Tiers`, which would otherwise sit outside every layering check and BNAQ1003 with
   nothing failing. With the `AppServices.EntryPoint` row deleted, it fails and names that project.
+- **Synced to Bennewitz.Ninja.Templates `2026.4.1031`** (#16, #17), on 2026-10-31.
+  `scripts/repo-conventions.cs` and `scripts/assert-packages.cs` are that release's; the retired
+  `"trimming"` key is gone from `repository.json`, and `src/Directory.Build.props` still makes every
+  shipped assembly trimmable. The packed README drops its *Releasing* section, as the template's has,
+  and links the licence absolutely: `assert-packages` now fails a relative link, since nuget.org
+  resolves one against itself. `docs/publishing.md` keeps the runbook. The tests move to xunit.v3
+  `4.0.2`, Templates' xunit part 2: `Parallelization.cs` declares `[assembly:
+  Xunit.v3.Parallelization(Mode = ParallelMode.None)]`, since 4.x made `CollectionBehavior`'s
+  `DisableTestParallelization` obsolete as an error, and TrxReport is gone, which nothing asked a
+  `.trx` of. `check` conforms; build, 184 of 199 tests (the 15 skipped need the native probe or
+  Linux, as before), pack and `assert-packages` pass on Windows. The packages' README changes, so a
+  release follows on the maintainer's word.
 
 ## Drift from `plans/00001`
 
